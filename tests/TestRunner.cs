@@ -12,6 +12,7 @@ namespace FocusSearch.Tests
         {
             var tests = new List<Action>();
             FuzzyMatcherTests.Register(tests);
+            SettingsStoreTests.Register(tests);
 
             foreach (var test in tests)
             {

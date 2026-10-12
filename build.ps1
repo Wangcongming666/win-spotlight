@@ -12,7 +12,7 @@ if ($Clean -and (Test-Path -LiteralPath $buildDirectory)) {
     $resolvedBuild = (Resolve-Path -LiteralPath $buildDirectory).Path
     $expectedBuild = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'build'))
     if ($resolvedBuild -ne $expectedBuild -or ((Get-Item -LiteralPath $buildDirectory).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
-        throw '构建目录路径异常，停止清理。'
+        throw 'Unexpected build directory path; refusing to clean.'
     }
     Remove-Item -LiteralPath $buildDirectory -Recurse -Force
 }
@@ -20,7 +20,7 @@ if ($Clean -and (Test-Path -LiteralPath $buildDirectory)) {
 New-Item -ItemType Directory -Force -Path $buildDirectory | Out-Null
 
 if (-not (Test-Path -LiteralPath $compiler)) {
-    throw "未找到 .NET Framework C# 编译器：$compiler"
+    throw "The .NET Framework C# compiler was not found: $compiler"
 }
 
 $references = @(
@@ -43,7 +43,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $entryPoint = Join-Path $projectRoot 'src\Program.cs'
-if (-not (Test-Path -LiteralPath $entryPoint)) { throw '未找到主程序入口。' }
+if (-not (Test-Path -LiteralPath $entryPoint)) { throw 'The application entry point was not found.' }
 $appOutput = Join-Path $buildDirectory 'FocusSearch.exe'
 & $compiler /noconfig /nologo /nowarn:1700 /optimize+ /target:winexe /platform:anycpu "/win32icon:$iconFile" "/resource:$iconFile,FocusSearch.app.ico" "/out:$appOutput" @references @sourceFiles
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -56,5 +56,5 @@ if ($Test) {
     exit $LASTEXITCODE
 }
 
-Write-Output "已生成 $appOutput"
+Write-Output "Built $appOutput"
 exit 0

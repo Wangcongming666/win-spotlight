@@ -19,7 +19,7 @@ namespace FocusSearch
         public PendingChange Prepare(AppSettings settings)
         {
             var keys = new List<HotkeySpec> { settings.SearchHotkey };
-            if (!settings.CombinedMode && settings.AppGridEnabled) keys.Add(settings.GridHotkey);
+            if (settings.AppGridEnabled) keys.Add(settings.GridHotkey);
             if (keys.Any(k => k == null || k.VirtualKey == 0 || k.VirtualKey > 254 || k.Modifiers == 0 || (k.Modifiers & ~15u) != 0)) return null;
             if (keys.Count == 2 && Same(keys[0], keys[1])) return null;
             var next = new List<Binding>();

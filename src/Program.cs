@@ -48,6 +48,7 @@ namespace FocusSearch
         private readonly HotkeyCoordinator _coordinator;
         private readonly NotifyIcon _tray;
         private readonly Icon _trayIcon;
+        private readonly TrayMenu _trayMenu;
         private readonly RegisteredWaitHandle _wakeRegistration;
         private readonly RegisteredWaitHandle _quitRegistration;
         public TrayContext(EventWaitHandle wake, EventWaitHandle quit, bool hidden)
@@ -61,16 +62,15 @@ namespace FocusSearch
             _hotkeys = new HotkeyWindow();
             _coordinator = new HotkeyCoordinator(delegate(int id, HotkeySpec key) { return NativeMethods.RegisterHotKey(_hotkeys.Handle, id, key.Modifiers | 0x4000, key.VirtualKey); }, delegate(int id) { NativeMethods.UnregisterHotKey(_hotkeys.Handle, id); });
             _hotkeys.Pressed = delegate(int id) { Toggle(_coordinator.IsGrid(id)); };
-            var menu = new ContextMenuStrip();
-            menu.Items.Add("显示搜索", null, delegate { Toggle(false); });
-            var appsMenu = menu.Items.Add("应用程序", null, delegate { Toggle(true); });
-            menu.Opening += delegate { appsMenu.Enabled = _settings.AppGridEnabled; };
-            menu.Items.Add("设置…", null, delegate { OpenSettings(); });
-            menu.Items.Add("关于", null, delegate { MessageBox.Show("聚焦搜索\n原生 Windows 应用启动与文件搜索工具\nAlt + Space 搜索 · Alt + A 应用程序", "聚焦搜索"); });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("退出", null, delegate { ExitThread(); });
+            _trayMenu = new TrayMenu(delegate { return _settings; }, delegate(int action) {
+                if (action == 0) Toggle(false);
+                else if (action == 1) Toggle(true);
+                else if (action == 2) OpenSettings();
+                else if (action == 3) { _launcher.HideLauncher(); using (var about = new AboutWindow()) about.ShowDialog(); }
+                else if (action == 4) ExitThread();
+            });
             _trayIcon = ApplicationIcon.Create();
-            _tray = new NotifyIcon { Icon = _trayIcon, Text = "聚焦搜索 · Alt + Space", ContextMenuStrip = menu, Visible = true };
+            _tray = new NotifyIcon { Icon = _trayIcon, Text = "聚焦搜索 · Alt + Space", ContextMenuStrip = _trayMenu, Visible = true };
             _tray.DoubleClick += delegate { Toggle(false); };
             if (!_coordinator.Apply(_settings)) _tray.ShowBalloonTip(5000, "快捷键注册失败", "可从托盘打开设置修改快捷键。", ToolTipIcon.Warning);
             _wakeRegistration = ThreadPool.RegisterWaitForSingleObject(wake, delegate { try { _launcher.BeginInvoke((Action)delegate { Show(false); }); } catch (InvalidOperationException) { } }, null, Timeout.Infinite, false);
@@ -123,7 +123,7 @@ namespace FocusSearch
         }
         protected override void ExitThreadCore()
         {
-            _quitRegistration.Unregister(null); _wakeRegistration.Unregister(null); _tray.Visible = false; _tray.Dispose(); _trayIcon.Dispose(); _coordinator.Dispose(); _hotkeys.Dispose(); _launcher.Dispose(); _index.Dispose(); base.ExitThreadCore();
+            _quitRegistration.Unregister(null); _wakeRegistration.Unregister(null); _tray.Visible = false; _tray.Dispose(); _trayMenu.Dispose(); _trayIcon.Dispose(); _coordinator.Dispose(); _hotkeys.Dispose(); _launcher.Dispose(); _index.Dispose(); base.ExitThreadCore();
         }
     }
 }

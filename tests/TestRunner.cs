@@ -16,6 +16,8 @@ namespace FocusSearch.Tests
                 UiSmoke.Run(); return;
             }
             if (args.Length > 0 && args[0] == "--perf-smoke") { PerformanceSmoke.Run(); return; }
+            System.Windows.Forms.Application.EnableVisualStyles();
+            System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
             var tests = new List<Action>();
             FuzzyMatcherTests.Register(tests);
             SettingsStoreTests.Register(tests);
@@ -26,7 +28,10 @@ namespace FocusSearch.Tests
             GridNavigationTests.Register(tests);
             MotionTests.Register(tests);
             SearchInputTests.Register(tests);
+            LauncherKeyboardTests.Register(tests);
             IconCacheTests.Register(tests);
+            TrayMenuTests.Register(tests);
+            DialogTests.Register(tests);
 
             foreach (var test in tests)
             {

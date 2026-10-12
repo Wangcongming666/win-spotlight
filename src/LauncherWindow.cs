@@ -16,6 +16,7 @@ namespace FocusSearch
         private readonly TextBox _input;
         private readonly LauncherCanvas _canvas;
         private readonly Label _footer;
+        private readonly LauncherCloseButton _dismiss;
         private readonly System.Windows.Forms.Timer _debounce;
         private CancellationTokenSource _query;
         private bool _fullScreen, _includeGrid;
@@ -38,7 +39,11 @@ namespace FocusSearch
             _input = new SearchInput { BorderStyle = BorderStyle.None, BackColor = BackColor, ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 18), Left = 70, Top = 34, Width = 580 };
             _canvas = new LauncherCanvas { Left = 20, Top = 100, Width = 640, Height = 370, BackColor = Color.Transparent };
             _footer = new Label { Left = 24, Top = 480, Height = 28, Width = 640, BackColor = Color.Transparent, ForeColor = Color.FromArgb(190, 199, 213), Text = "输入以搜索应用和文件     ↑ ↓ 选择   Enter 打开   Esc 收起" };
-            Controls.Add(_input); Controls.Add(_canvas); Controls.Add(_footer);
+            _footer.TextAlign = ContentAlignment.MiddleLeft;
+            _footer.AutoEllipsis = true;
+            _dismiss = new LauncherCloseButton { Width = 28, Height = 28, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+            _dismiss.Click += delegate { HideLauncher(); };
+            Controls.Add(_input); Controls.Add(_canvas); Controls.Add(_footer); Controls.Add(_dismiss);
             _canvas.ActivateItem = delegate(SearchItem item) { if (LaunchRequested != null) LaunchRequested(item); };
             _debounce = new System.Windows.Forms.Timer { Interval = 130 };
             _debounce.Tick += delegate { _debounce.Stop(); RunQuery(); };
@@ -86,7 +91,8 @@ namespace FocusSearch
                 _input.SetBounds(70, 34, Width - 115, 38);
                 _canvas.SetBounds(24, 126, Width - 48, Math.Max(120, Height - 170));
             }
-            _footer.SetBounds(24, Height - 32, Width - 48, 25);
+            _footer.SetBounds(24, Height - 34, Width - 88, 25);
+            _dismiss.SetBounds(Width - 52, Height - 36, 28, 28);
             if (_backdrop != null) _backdrop.Dispose();
             _backdrop = GlassBackdrop.Capture(Bounds);
             _input.Clear(); RefreshEmpty(); _canvas.PrepareIcons();
@@ -100,7 +106,7 @@ namespace FocusSearch
             _canvas.GridMode = _includeGrid || _fullScreen;
             _canvas.Visible = _canvas.GridMode;
             _canvas.SetItems(_engine.Recent(10000));
-            _footer.Text = _canvas.GridMode ? "方向键选择     回车打开     滚轮翻页" : "应用、文件与文件夹";
+            _footer.Text = _canvas.GridMode ? "方向键选择   ·   Enter 打开   ·   滚轮翻页   ·   Esc 收起" : "应用、文件与文件夹   ·   Esc 收起";
         }
         private async void RunQuery()
         {
@@ -137,10 +143,19 @@ namespace FocusSearch
         private void FinishHide() { Hide(); if (_backdrop != null) { _backdrop.Dispose(); _backdrop = null; } }
         private void OnInputKey(object sender, KeyEventArgs args)
         {
-            if (args.KeyCode == Keys.Escape) { HideLauncher(); args.SuppressKeyPress = true; }
-            else if (args.KeyCode == Keys.Enter) { _canvas.OpenSelected(); args.SuppressKeyPress = true; }
-            else if (args.KeyCode == Keys.Down || args.KeyCode == Keys.Up || ((_input.TextLength == 0) && (args.KeyCode == Keys.Left || args.KeyCode == Keys.Right)) || args.KeyCode == Keys.PageDown || args.KeyCode == Keys.PageUp)
-            { _canvas.Navigate(args.KeyCode); args.SuppressKeyPress = true; }
+            if (HandleLauncherKey(args.KeyCode)) args.SuppressKeyPress = true;
+        }
+        protected override bool ProcessCmdKey(ref Message message, Keys keyData)
+        {
+            return HandleLauncherKey(keyData & Keys.KeyCode) || base.ProcessCmdKey(ref message, keyData);
+        }
+        private bool HandleLauncherKey(Keys key)
+        {
+            if (key == Keys.Escape) { HideLauncher(); return true; }
+            if (key == Keys.Enter) { _canvas.OpenSelected(); return true; }
+            if (key == Keys.Down || key == Keys.Up || ((_input.TextLength == 0) && (key == Keys.Left || key == Keys.Right)) || key == Keys.PageDown || key == Keys.PageUp)
+            { _canvas.Navigate(key); return true; }
+            return false;
         }
         protected override void OnPaint(PaintEventArgs args)
         {
@@ -150,7 +165,6 @@ namespace FocusSearch
             using (var fill = new SolidBrush(BackColor)) args.Graphics.FillPath(fill, path);
             using (var pen = new Pen(Color.FromArgb(183, 198, 218), 1.8f)) { args.Graphics.DrawEllipse(pen, _input.Left - 29, _input.Top + 6, 15, 15); args.Graphics.DrawLine(pen, _input.Left - 16, _input.Top + 20, _input.Left - 9, _input.Top + 27); }
             if (!_fullScreen) using (var border = new Pen(Color.FromArgb(75, 205, 218, 238))) using (var outline = RoundedShapes.Path(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), 24)) args.Graphics.DrawPath(border, outline);
-            using (var hintFont = new Font("Segoe UI", 9)) TextRenderer.DrawText(args.Graphics, "esc", hintFont, new Rectangle(Width - 60, Height - 33, 38, 24), Color.FromArgb(176, 188, 208), TextFormatFlags.HorizontalCenter);
         }
         protected override void OnSizeChanged(EventArgs args)
         {

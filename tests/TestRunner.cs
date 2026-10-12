@@ -8,11 +8,21 @@ namespace FocusSearch.Tests
         private static int _passed;
         private static int _failed;
 
-        private static void Main()
+        [STAThread]
+        private static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == "--ui-smoke")
+            {
+                UiSmoke.Run(); return;
+            }
             var tests = new List<Action>();
             FuzzyMatcherTests.Register(tests);
             SettingsStoreTests.Register(tests);
+            AppIndexTests.Register(tests);
+            SearchEngineTests.Register(tests);
+            HotkeyTests.Register(tests);
+            LocalFileTests.Register(tests);
+            GridNavigationTests.Register(tests);
 
             foreach (var test in tests)
             {

@@ -31,7 +31,7 @@ namespace FocusSearch
             if (_hover || Focused) using (var path = RoundedShapes.Path(new RectangleF(0, 0, Width, Height), 6))
                 using (var brush = new SolidBrush(Color.FromArgb(30, 221, 233, 250))) e.Graphics.FillPath(brush, path);
             float cx = Width / 2f, cy = Height / 2f;
-            using (var pen = new Pen(Color.FromArgb(191, 205, 225), 1.5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (var pen = new Pen(ForeColor, 1.5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             { e.Graphics.DrawLine(pen, cx - 4, cy - 4, cx + 4, cy + 4); e.Graphics.DrawLine(pen, cx + 4, cy - 4, cx - 4, cy + 4); }
         }
     }

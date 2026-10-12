@@ -12,6 +12,7 @@ namespace FocusSearch
         [STAThread]
         private static void Main(string[] args)
         {
+            WindowsShellEnvironment.Prepare();
             using (var mutex = new Mutex(false, "Local\\FocusSearch.Instance"))
             using (var wake = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\FocusSearch.Wake"))
             using (var quit = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\FocusSearch.Quit"))
@@ -78,12 +79,12 @@ namespace FocusSearch
             ThreadPool.QueueUserWorkItem(delegate { _index.Refresh(); });
             if (!hidden) Show(false);
         }
-        private void Toggle(bool grid) { if (_launcher.Visible && !_launcher.IsHiding) _launcher.HideLauncher(); else Show(grid); }
+        private void Toggle(bool grid) { if (_launcher.Visible && !_launcher.IsHiding && _launcher.IsApplicationsView == grid) _launcher.HideLauncher(); else Show(grid); }
         private void Show(bool grid) { _launcher.ShowLauncher(grid || (_settings.CombinedMode && _settings.AppGridEnabled), grid); }
         private void Launch(SearchItem item)
         {
-            try { var launched = Process.Start(new ProcessStartInfo(item.Path) { UseShellExecute = true }); if (launched != null) launched.Dispose(); }
-            catch (Exception error) { _tray.ShowBalloonTip(4000, "无法打开", error.Message, ToolTipIcon.Warning); return; }
+            try { var launched = ApplicationLauncher.Start(item); if (launched != null) launched.Dispose(); }
+            catch (Exception error) { _launcher.ReportLaunchError(error.Message); return; }
             _launcher.HideLauncher(); _engine.RecordLaunch(item.Path);
             try { _store.RecordLaunch(item.Path); }
             catch (Exception error) { _tray.ShowBalloonTip(4000, "历史记录未保存", error.Message, ToolTipIcon.Warning); }

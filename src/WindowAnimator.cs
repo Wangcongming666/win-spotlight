@@ -18,7 +18,7 @@ namespace FocusSearch
         public void Open(bool enabled, bool translate)
         {
             _timer.Stop(); IsClosing = false; _completed = null; _anchor = _window.Location; _translate = translate;
-            if (!enabled) { _window.Opacity = 0.98; return; }
+            if (!enabled) { _window.Opacity = 1; return; }
             _window.Opacity = 0.04; if (_translate) _window.Top = _anchor.Y + 10;
             _clock.Restart(); _timer.Start();
         }
@@ -34,18 +34,18 @@ namespace FocusSearch
             if (_window.IsDisposed) { _timer.Stop(); return; }
             double progress = Math.Min(1, _clock.Elapsed.TotalMilliseconds / (IsClosing ? 120 : 180));
             double eased = Motion.EaseOut(progress);
-            _window.Opacity = IsClosing ? Math.Max(0.02, _from * (1 - eased)) : 0.04 + 0.94 * eased;
+            _window.Opacity = IsClosing ? Math.Max(0.02, _from * (1 - eased)) : 0.04 + 0.96 * eased;
             if (_translate) _window.Top = _anchor.Y + (int)Math.Round(IsClosing ? 6 * eased : 10 * (1 - eased));
             if (progress < 1) return;
             _timer.Stop();
             if (IsClosing) { IsClosing = false; Action completed = _completed; _completed = null; if (completed != null) completed(); }
-            else { _window.Location = _anchor; _window.Opacity = 0.98; }
+            else { _window.Location = _anchor; _window.Opacity = 1; }
         }
         public void Stop()
         {
             bool running = _timer.Enabled; _timer.Stop(); _completed = null; IsClosing = false;
             if (running && !_window.IsDisposed) _window.Location = _anchor;
-            if (!_window.IsDisposed) _window.Opacity = 0.98;
+            if (running && !_window.IsDisposed) _window.Opacity = 1;
         }
         public void Dispose() { _timer.Stop(); _timer.Dispose(); }
     }

@@ -7,10 +7,14 @@ namespace FocusSearch
         [DllImport("user32.dll", SetLastError=true)] internal static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
         [DllImport("user32.dll")] internal static extern bool UnregisterHotKey(IntPtr window, int id);
         [DllImport("user32.dll")] internal static extern bool SetForegroundWindow(IntPtr window);
+        [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll", SetLastError=true)] internal static extern bool SystemParametersInfo(uint action, uint parameter, [MarshalAs(UnmanagedType.Bool)] out bool value, uint flags);
         [DllImport("shell32.dll", EntryPoint="SHGetImageList")] internal static extern int SHGetImageList(int kind, ref Guid iid, out IImageList list);
         [DllImport("user32.dll")] internal static extern int SetWindowCompositionAttribute(IntPtr window, ref CompositionData data);
         [DllImport("dwmapi.dll")] internal static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
+        [StructLayout(LayoutKind.Sequential)] internal struct Margins { public int Left, Right, Top, Bottom; }
+        [DllImport("dwmapi.dll")] internal static extern int DwmExtendFrameIntoClientArea(IntPtr window, ref Margins margins);
+        [DllImport("dwmapi.dll")] internal static extern int DwmFlush();
         [DllImport("user32.dll")] internal static extern bool DestroyIcon(IntPtr icon);
         [DllImport("user32.dll", CharSet=CharSet.Unicode)] internal static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr parameter, string text);
         [DllImport("shell32.dll", CharSet=CharSet.Unicode)] internal static extern IntPtr SHGetFileInfo(string path, uint attributes, ref ShellFileInfo info, uint size, uint flags);

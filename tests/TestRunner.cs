@@ -27,8 +27,12 @@ namespace FocusSearch.Tests
             LocalFileTests.Register(tests);
             GridNavigationTests.Register(tests);
             MotionTests.Register(tests);
+            GlassBackdropTests.Register(tests);
             SearchInputTests.Register(tests);
             LauncherKeyboardTests.Register(tests);
+            LauncherMouseTests.Register(tests);
+            ApplicationLaunchTests.Register(tests);
+            SearchBarTests.Register(tests);
             IconCacheTests.Register(tests);
             TrayMenuTests.Register(tests);
             DialogTests.Register(tests);
@@ -44,7 +48,7 @@ namespace FocusSearch.Tests
                 catch (Exception exception)
                 {
                     _failed++;
-                    Console.WriteLine("FAIL " + test.Method.Name + ": " + exception.Message);
+                    Console.WriteLine("FAIL " + test.Method.Name + ": " + exception.GetBaseException().Message);
                 }
             }
 

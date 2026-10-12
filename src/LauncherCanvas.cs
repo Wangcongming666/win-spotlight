@@ -25,7 +25,7 @@ namespace FocusSearch
         public event EventHandler ContextMenuClosed;
         private readonly ItemContextMenu _itemMenu;
         public bool IsContextMenuOpen { get { return _itemMenu.Visible; } }
-        private int Columns { get { return Math.Max(1, Width / 144); } }
+        private int Columns { get { return Width >= 600 ? 6 : Math.Max(1, Width / 144); } }
         private int Rows { get { return Math.Min(Math.Max(1, (Height - 30) / 132), Math.Max(1, 96 / Columns)); } }
         private int PageSize { get { return Columns * Rows; } }
         private int ListStart { get { return Math.Max(0, _selected - Math.Max(1, Height / 62) + 1); } }

@@ -9,7 +9,54 @@ namespace FocusSearch.Tests
     {
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr window, IntPtr region);
         [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr value);
-        public static void Register(ICollection<Action> tests) { tests.Add(InitialSearchBarAndHoverCategories); tests.Add(InstalledDouyinMatchesInitials); tests.Add(ApplicationPreviewCollapsesOnLeaveAndSearchStaysOpen); tests.Add(IndependentApplicationsViewHasNoSearchAndDoubleClickOpens); }
+        public static void Register(ICollection<Action> tests) { tests.Add(InitialSearchBarAndHoverCategories); tests.Add(InstalledDouyinMatchesInitials); tests.Add(ApplicationPreviewCollapsesOnLeaveAndSearchStaysOpen); tests.Add(IndependentApplicationsViewHasNoSearchAndDoubleClickOpens); tests.Add(CategoryRevealAnimatesAndReversesWithoutJumping); }
+        private static void CategoryRevealAnimatesAndReversesWithoutJumping()
+        {
+            var progress = typeof(SearchTabButton).GetProperty("RevealProgress");
+            TestRunner.Equal(true, progress != null, "Category buttons must support progressive reveal rather than abrupt visibility changes.");
+            using (var index = new AppIndex(new string[0]))
+            using (var window = new LauncherWindow(index, new SearchEngine(index, new WindowsSearchProvider(), new Dictionary<string, UsageRecord>()), new AppSettings { HideOnDeactivate = false, AnimationsEnabled = false }))
+            {
+                window.ShowLauncher(true, false);
+                var tabs = (SearchTabButton[])typeof(LauncherWindow).GetField("_tabs", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+                var expand = typeof(LauncherWindow).GetMethod("ExpandTabs", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (Motion.SystemAllowsAnimation())
+                {
+                    window.Settings.AnimationsEnabled = true;
+                    expand.Invoke(window, new object[] { true }); tabs[0].Focus();
+                    TestRunner.Equal(true, (double)progress.GetValue(tabs[0], null) < 1, "Hover reveal must begin before the fully visible state.");
+                    DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+                    while ((double)progress.GetValue(tabs[0], null) == 0 && DateTime.UtcNow < deadline)
+                    { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                    double partial = (double)progress.GetValue(tabs[0], null);
+                    TestRunner.Equal(true, partial > 0 && partial < 1, "Reveal must render an intermediate state.");
+                    TestRunner.Equal(true, partial > (double)progress.GetValue(tabs[3], null), "Buttons must enter with a short stagger.");
+                    Capture(window, "category-reveal-mid.png");
+                    expand.Invoke(window, new object[] { false });
+                    TestRunner.Equal(partial, (double)progress.GetValue(tabs[0], null), "Closing must continue from current progress without snapping.");
+                    TestRunner.Equal(true, tabs[0].Visible, "Closing animation must retain the button until fading finishes.");
+                    expand.Invoke(window, new object[] { true });
+                    TestRunner.Equal(partial, (double)progress.GetValue(tabs[0], null), "Reopening midway must not reset the animation.");
+                    deadline = DateTime.UtcNow.AddSeconds(2);
+                    while ((double)progress.GetValue(tabs[3], null) < 1 && DateTime.UtcNow < deadline)
+                    { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                    TestRunner.Equal(1.0, (double)progress.GetValue(tabs[3], null), "All buttons must settle fully visible.");
+                    Capture(window, "category-reveal-final.png");
+                    expand.Invoke(window, new object[] { false });
+                    deadline = DateTime.UtcNow.AddSeconds(2);
+                    while (tabs[0].Visible && DateTime.UtcNow < deadline)
+                    { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                    foreach (var tab in tabs) TestRunner.Equal(false, tab.Visible, "Animated closing must eventually remove every category button.");
+                    TestRunner.Equal(false, window.Region.IsVisible(tabs[3].Bounds.Location + new Size(27, 27)), "Closed categories must no longer leave a native hit region.");
+                }
+                window.Settings.AnimationsEnabled = false;
+                expand.Invoke(window, new object[] { false });
+                foreach (var tab in tabs) TestRunner.Equal(false, tab.Visible, "Disabled animations must close immediately.");
+                expand.Invoke(window, new object[] { true });
+                foreach (var tab in tabs) TestRunner.Equal(1.0, (double)progress.GetValue(tab, null), "Disabled animations must reveal all buttons immediately.");
+                window.HideLauncher();
+            }
+        }
         private static void IndependentApplicationsViewHasNoSearchAndDoubleClickOpens()
         {
             using (var index = new AppIndex(new string[0]))

@@ -16,6 +16,27 @@ namespace FocusSearch.Tests
             tests.Add(RightClickTargetsClickedItemAndUsesCustomMenu);
             tests.Add(MenuDoesNotDeactivateLauncher);
             tests.Add(RevealLocationWaitsForResultAndReportsFailure);
+            tests.Add(StandardGridUsesSixColumnsForNavigationAndHitTesting);
+        }
+        private static void StandardGridUsesSixColumnsForNavigationAndHitTesting()
+        {
+            foreach (int width in new[] { 684, 1120 })
+                using (var canvas = new LauncherCanvas { Width = width, Height = 320, GridMode = true })
+                {
+                    var items = new List<SearchItem>();
+                    for (int i = 0; i < 20; i++) items.Add(new SearchItem { Name = "App " + i, Path = "app" + i });
+                    SearchItem opened = null;
+                    canvas.ActivateItem = delegate(SearchItem item) { opened = item; };
+                    canvas.SetItems(items);
+                    canvas.Navigate(Keys.Down); canvas.OpenSelected();
+                    TestRunner.Equal(items[6], opened, "Down must move six apps in both preview and full-size grids.");
+                    canvas.SetItems(items);
+                    Mouse(canvas, "OnMouseDoubleClick", MouseButtons.Left, new Point(width / 6 * 5 + 10, 30));
+                    TestRunner.Equal(items[5], opened, "The sixth tile in the first row must open its own app.");
+                    canvas.SetItems(items);
+                    canvas.Navigate(Keys.PageDown); canvas.OpenSelected();
+                    TestRunner.Equal(items[12], opened, "Paging must account for two rows of six apps.");
+                }
         }
         private static void RevealLocationWaitsForResultAndReportsFailure()
         {

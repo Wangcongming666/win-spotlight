@@ -34,6 +34,9 @@ namespace FocusSearch
         private readonly Panel _tabReveal;
         private readonly ToolTip _tabTips;
         private readonly System.Windows.Forms.Timer _tabTimer;
+        private readonly System.Windows.Forms.Timer _tabAnimationTimer;
+        private readonly Stopwatch _tabAnimationClock = new Stopwatch();
+        private readonly double[] _tabAnimationFrom = new double[4];
         private int SearchBarWidth { get { return _fullScreen ? 600 : Math.Max(200, Width - 256); } }
         private bool Compact { get { return !_fullScreen && !_browseApps && _input.TextLength == 0; } }
         public bool IsHiding { get { return _animator.IsClosing; } }
@@ -76,6 +79,8 @@ namespace FocusSearch
             Controls.Add(_tabReveal);
             _tabTimer = new System.Windows.Forms.Timer { Interval = 180 };
             _tabTimer.Tick += delegate { UpdateHoverState(PointToClient(Cursor.Position)); };
+            _tabAnimationTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            _tabAnimationTimer.Tick += delegate { UpdateTabAnimation(); };
             _canvas.ActivateItem = delegate(SearchItem item) { if (LaunchRequested != null) LaunchRequested(item); };
             _canvas.ContextActionRequested = InvokeContextAction;
             _canvas.ContextMenuClosed += delegate { CheckDeactivation(); };
@@ -117,10 +122,36 @@ namespace FocusSearch
         private void ExpandTabs(bool expanded)
         {
             expanded = expanded && !_fullScreen;
+            if (_tabsExpanded == expanded && !_presenting) return;
+            _tabAnimationTimer.Stop();
             _tabsExpanded = expanded;
-            foreach (var tab in _tabs) tab.Visible = expanded;
+            bool animate = Visible && !_presenting && Settings.AnimationsEnabled && Motion.SystemAllowsAnimation();
+            for (int i = 0; i < _tabs.Length; i++)
+            {
+                _tabAnimationFrom[i] = _tabs[i].RevealProgress;
+                if (expanded) _tabs[i].Visible = true;
+                if (!animate) { _tabs[i].RevealProgress = expanded ? 1 : 0; _tabs[i].Visible = expanded; }
+            }
+            if (animate) { _tabAnimationClock.Restart(); _tabAnimationTimer.Start(); }
             if (expanded || _browseApps) _tabTimer.Start(); else _tabTimer.Stop();
             UpdateWindowRegion(); Invalidate(true);
+        }
+        private void UpdateTabAnimation()
+        {
+            double elapsed = _tabAnimationClock.Elapsed.TotalMilliseconds;
+            double duration = _tabsExpanded ? 180 : 130;
+            for (int i = 0; i < _tabs.Length; i++)
+            {
+                double delay = (_tabsExpanded ? i : _tabs.Length - 1 - i) * 18;
+                double amount = Motion.EaseOut((elapsed - delay) / duration);
+                _tabs[i].RevealProgress = _tabAnimationFrom[i] + ((_tabsExpanded ? 1 : 0) - _tabAnimationFrom[i]) * amount;
+            }
+            if (elapsed >= duration + (_tabs.Length - 1) * 18)
+            {
+                _tabAnimationTimer.Stop();
+                foreach (var tab in _tabs) { tab.RevealProgress = _tabsExpanded ? 1 : 0; tab.Visible = _tabsExpanded; }
+            }
+            UpdateWindowRegion(false); Invalidate(true);
         }
         private void SelectScope(SearchScope scope)
         {
@@ -301,7 +332,12 @@ namespace FocusSearch
             if (!Visible) return;
             _animator.Close(Settings.AnimationsEnabled && Motion.SystemAllowsAnimation(), FinishHide);
         }
-        private void FinishHide() { Hide(); if (_backdrop != null) { _backdrop.Dispose(); _backdrop = null; } }
+        private void FinishHide()
+        {
+            _tabAnimationTimer.Stop(); _tabsExpanded = false;
+            foreach (var tab in _tabs) { tab.Visible = false; tab.RevealProgress = 0; }
+            Hide(); if (_backdrop != null) { _backdrop.Dispose(); _backdrop = null; }
+        }
         private void OnInputKey(object sender, KeyEventArgs args)
         {
             if (HandleLauncherKey(args.KeyCode)) args.SuppressKeyPress = true;
@@ -352,17 +388,26 @@ namespace FocusSearch
             base.OnSizeChanged(args);
             UpdateWindowRegion();
         }
-        private void UpdateWindowRegion()
+        private void UpdateWindowRegion(bool refreshEffects = true)
         {
             if (Width < 48 || Height < 48) return;
-            if (IsHandleCreated && _input != null) GlassEffects.Apply(this, Compact);
+            if (refreshEffects && IsHandleCreated && _input != null) GlassEffects.Apply(this, Compact);
             Region previous = Region;
             if (_fullScreen) Region = null;
             else if (_input != null && Compact)
             {
                 Region expanded;
                 using (var path = RoundedShapes.Path(new RectangleF(0, 6, SearchBarWidth, 62), 31)) expanded = new Region(path);
-                if (_tabsExpanded && _tabs != null) foreach (var tab in _tabs) using (var path = new GraphicsPath()) { path.AddEllipse(tab.Bounds); expanded.Union(path); }
+                if (_tabs != null) foreach (var tab in _tabs)
+                {
+                    double progress = tab.RevealProgress;
+                    if (!tab.Visible || progress <= 0) continue;
+                    using (var path = new GraphicsPath())
+                    {
+                        path.AddEllipse((float)(tab.Left + tab.Width * (1 - progress) / 2), (float)(tab.Top + tab.Height * (1 - progress) / 2), (float)(tab.Width * progress), (float)(tab.Height * progress));
+                        expanded.Union(path);
+                    }
+                }
                 // Assign after union: mutating Form.Region afterwards does not
                 // update the native HWND clipping region or its mouse hit area.
                 Region = expanded;
@@ -377,7 +422,7 @@ namespace FocusSearch
         }
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { _tabTimer.Dispose(); _tabTips.Dispose(); _animator.Dispose(); if (_backdrop != null) _backdrop.Dispose(); _index.Changed -= IndexChanged; _debounce.Dispose(); if (_query != null) _query.Cancel(); }
+            if (disposing) { _tabAnimationTimer.Dispose(); _tabTimer.Dispose(); _tabTips.Dispose(); _animator.Dispose(); if (_backdrop != null) _backdrop.Dispose(); _index.Changed -= IndexChanged; _debounce.Dispose(); if (_query != null) _query.Cancel(); }
             base.Dispose(disposing);
         }
     }

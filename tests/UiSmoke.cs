@@ -59,6 +59,8 @@ namespace FocusSearch.Tests
                             typeof(Control).GetMethod("OnMouseEnter", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(reveal, new object[] { EventArgs.Empty });
                             var tabs = (SearchTabButton[])typeof(LauncherWindow).GetField("_tabs", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
                             tabs[0].Focus();
+                            typeof(Control).GetMethod("OnMouseEnter", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(tabs[0], new object[] { EventArgs.Empty });
+                            tabs[0].Focus();
                         }
                         else if (phase == 1)
                         {

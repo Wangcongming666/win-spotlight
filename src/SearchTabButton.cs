@@ -9,6 +9,13 @@ namespace FocusSearch
         public SearchScope Scope { get; set; }
         public bool Selected { get; set; }
         private bool _hover, _pressed;
+        private double _revealProgress = 1;
+        public double RevealProgress
+        {
+            get { return _revealProgress; }
+            set { _revealProgress = Math.Max(0, Math.Min(1, value)); Invalidate(); }
+        }
+        private Color Fade(Color color) { return Color.FromArgb((int)Math.Round(color.A * _revealProgress), color); }
         public SearchTabButton()
         { SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true); BackColor = Color.Transparent; Cursor = Cursors.Hand; }
         protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
@@ -25,13 +32,18 @@ namespace FocusSearch
         protected override void OnPaint(PaintEventArgs e)
         {
             OnPaintBackground(e); var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
+            if (_revealProgress <= 0) return;
+            var entrance = g.Save();
+            float scale = (float)(0.84 + 0.16 * _revealProgress);
+            g.TranslateTransform(Width / 2f, Height / 2f + (float)(4 * (1 - _revealProgress)));
+            g.ScaleTransform(scale, scale); g.TranslateTransform(-Width / 2f, -Height / 2f);
             float inset = _pressed ? 3 : 1.5f;
             RectangleF circle = new RectangleF(inset, inset, Width - inset * 2, Height - inset * 2);
-            using (var fill = new SolidBrush(SystemInformation.HighContrast ? SystemColors.Window : Color.FromArgb(_hover ? 235 : 205, GlassPalette.Surface))) g.FillEllipse(fill, circle);
-            using (var pen = new Pen(Selected || Focused ? GlassPalette.Selection : Color.FromArgb(GlassPalette.IsDark ? 95 : 235, Color.White), Selected || Focused ? 2 : 1.3f)) g.DrawEllipse(pen, circle);
-            using (var pen = new Pen(Color.FromArgb(45, GlassPalette.Secondary))) g.DrawEllipse(pen, inset + 1.5f, inset + 1.5f, Width - inset * 2 - 3, Height - inset * 2 - 3);
+            using (var fill = new SolidBrush(Fade(SystemInformation.HighContrast ? SystemColors.Window : Color.FromArgb(_hover ? 235 : 205, GlassPalette.Surface)))) g.FillEllipse(fill, circle);
+            using (var pen = new Pen(Fade(Selected || Focused ? GlassPalette.Selection : Color.FromArgb(GlassPalette.IsDark ? 95 : 235, Color.White)), Selected || Focused ? 2 : 1.3f)) g.DrawEllipse(pen, circle);
+            using (var pen = new Pen(Fade(Color.FromArgb(45, GlassPalette.Secondary)))) g.DrawEllipse(pen, inset + 1.5f, inset + 1.5f, Width - inset * 2 - 3, Height - inset * 2 - 3);
             var state = g.Save(); g.TranslateTransform((Width - 24) / 2f, (Height - 24) / 2f);
-            using (var pen = new Pen(Enabled ? Selected ? GlassPalette.Selection : GlassPalette.Text : GlassPalette.Secondary, 1.65f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            using (var pen = new Pen(Fade(Enabled ? Selected ? GlassPalette.Selection : GlassPalette.Text : GlassPalette.Secondary), 1.65f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
             {
                 if (Scope == SearchScope.Applications) { g.DrawLine(pen, 7, 21, 16, 3); g.DrawLine(pen, 8, 3, 17, 21); g.DrawLine(pen, 3, 16, 21, 16); g.DrawLine(pen, 5, 20, 7, 16); }
                 else if (Scope == SearchScope.Folders) { g.DrawLines(pen, new[] { new Point(2, 20), new Point(2, 4), new Point(9, 4), new Point(12, 7), new Point(22, 7), new Point(22, 20), new Point(2, 20) }); g.DrawLine(pen, 5, 10, 19, 10); }
@@ -39,6 +51,7 @@ namespace FocusSearch
                 else { g.DrawLines(pen, new[] { new Point(7, 21), new Point(7, 2), new Point(16, 2), new Point(22, 8), new Point(22, 21), new Point(7, 21) }); g.DrawLines(pen, new[] { new Point(16, 2), new Point(16, 8), new Point(22, 8) }); g.DrawLines(pen, new[] { new Point(4, 6), new Point(2, 6), new Point(2, 24), new Point(16, 24) }); }
             }
             g.Restore(state);
+            g.Restore(entrance);
         }
     }
 }

@@ -16,6 +16,8 @@ namespace FocusSearch
         private readonly AppIndex _index;
         private readonly SearchEngine _engine;
         private readonly Func<string, Task> _openFileLocation;
+        private readonly Action<Form, bool> _applyGlass;
+        private bool _glassConfigured, _applyingPreviewFrame;
         private bool _contextActionPending;
         private readonly TextBox _input;
         private readonly LauncherCanvas _canvas;
@@ -48,9 +50,12 @@ namespace FocusSearch
         public AppSettings Settings { get; set; }
         public Action<SearchItem> LaunchRequested;
         public LauncherWindow(AppIndex index, SearchEngine engine, AppSettings settings, Func<string, Task> openFileLocation = null)
+            : this(index, engine, settings, openFileLocation, null) { }
+        public LauncherWindow(AppIndex index, SearchEngine engine, AppSettings settings, Func<string, Task> openFileLocation, Action<Form, bool> applyGlass)
         {
             _index = index; _engine = engine; Settings = settings;
             _openFileLocation = openFileLocation ?? FileLocationOpener.OpenAsync;
+            _applyGlass = applyGlass ?? GlassEffects.Apply;
             Text = "聚焦搜索"; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual; TopMost = true; KeyPreview = true;
             BackColor = Color.FromArgb(242, 246, 250); ForeColor = Color.FromArgb(35, 48, 65);
@@ -235,6 +240,7 @@ namespace FocusSearch
             _previewTimer.Stop();
             _animator.Stop();
             if (Visible) FinishHide();
+            _glassConfigured = false;
             _presenting = true;
             GlassPalette.Refresh();
             BackColor = SystemInformation.HighContrast ? SystemColors.Window : GlassPalette.Surface;
@@ -313,6 +319,7 @@ namespace FocusSearch
         }
         private void ApplyPreviewFrame(int height, int top, bool complete)
         {
+            _applyingPreviewFrame = true;
             SuspendLayout();
             try
             {
@@ -324,7 +331,7 @@ namespace FocusSearch
                 _footer.Visible = _dismiss.Visible = !Compact;
                 UpdateWindowRegion(complete); Invalidate(true);
             }
-            finally { ResumeLayout(); }
+            finally { ResumeLayout(); _applyingPreviewFrame = false; }
         }
         private async void RunQuery()
         {
@@ -426,12 +433,20 @@ namespace FocusSearch
         protected override void OnSizeChanged(EventArgs args)
         {
             base.OnSizeChanged(args);
-            UpdateWindowRegion();
+            // Preview frames update their region after sizing and child layout,
+            // avoiding a second compositor update halfway through the frame.
+            if (!_applyingPreviewFrame) UpdateWindowRegion();
         }
         private void UpdateWindowRegion(bool refreshEffects = true)
         {
             if (Width < 48 || Height < 48) return;
-            if (refreshEffects && IsHandleCreated && _input != null) GlassEffects.Apply(this, Compact);
+            if (refreshEffects && IsHandleCreated && _input != null && !_glassConfigured)
+            {
+                // Manual regions supply both shapes. Keep DWM margins and corner
+                // policy fixed for the entire visible session to avoid a flash.
+                _applyGlass(this, true);
+                _glassConfigured = true;
+            }
             Region previous = Region;
             if (_fullScreen) Region = null;
             else if (_input != null && Compact)
@@ -459,6 +474,16 @@ namespace FocusSearch
         {
             if (_backdrop == null) base.OnPaintBackground(args);
             else args.Graphics.DrawImageUnscaled(_backdrop, Point.Empty);
+        }
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var parameters = base.CreateParams;
+                // Composite the parent and child controls into a single buffered frame.
+                parameters.ExStyle |= 0x02000000;
+                return parameters;
+            }
         }
         protected override void Dispose(bool disposing)
         {

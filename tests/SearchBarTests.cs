@@ -9,7 +9,35 @@ namespace FocusSearch.Tests
     {
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr window, IntPtr region);
         [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr value);
-        public static void Register(ICollection<Action> tests) { tests.Add(InitialSearchBarAndHoverCategories); tests.Add(InstalledDouyinMatchesInitials); tests.Add(ApplicationPreviewCollapsesOnLeaveAndSearchStaysOpen); tests.Add(IndependentApplicationsViewHasNoSearchAndDoubleClickOpens); tests.Add(CategoryRevealAnimatesAndReversesWithoutJumping); tests.Add(ApplicationPanelExpandsAndReversesSmoothly); }
+        public static void Register(ICollection<Action> tests) { tests.Add(InitialSearchBarAndHoverCategories); tests.Add(InstalledDouyinMatchesInitials); tests.Add(ApplicationPreviewCollapsesOnLeaveAndSearchStaysOpen); tests.Add(IndependentApplicationsViewHasNoSearchAndDoubleClickOpens); tests.Add(CategoryRevealAnimatesAndReversesWithoutJumping); tests.Add(ApplicationPanelExpandsAndReversesSmoothly); tests.Add(PreviewAnimationKeepsNativeCompositionStable); }
+        private static void PreviewAnimationKeepsNativeCompositionStable()
+        {
+            var constructor = typeof(LauncherWindow).GetConstructor(new[] { typeof(AppIndex), typeof(SearchEngine), typeof(AppSettings), typeof(Func<string, System.Threading.Tasks.Task>), typeof(Action<Form, bool>) });
+            TestRunner.Equal(true, constructor != null, "Native window composition must be a controlled boundary, not reconfigured on every resize frame.");
+            int nativeUpdates = 0;
+            Action<Form, bool> apply = delegate(Form form, bool compact) { nativeUpdates++; GlassEffects.Apply(form, compact); };
+            using (var index = new AppIndex(new string[0]))
+            using (var window = (LauncherWindow)constructor.Invoke(new object[] { index, new SearchEngine(index, new WindowsSearchProvider(), new Dictionary<string, UsageRecord>()), new AppSettings { AnimationsEnabled = false, HideOnDeactivate = false }, null, apply }))
+            {
+                window.ShowLauncher(true, false);
+                int initial = nativeUpdates;
+                TestRunner.Equal(true, initial > 0, "The visible window must initialize native composition.");
+                window.Settings.AnimationsEnabled = true;
+                var select = typeof(LauncherWindow).GetMethod("SelectScope", BindingFlags.NonPublic | BindingFlags.Instance);
+                var hover = typeof(LauncherWindow).GetMethod("UpdateHoverState", BindingFlags.NonPublic | BindingFlags.Instance);
+                var input = (TextBox)typeof(LauncherWindow).GetField("_input", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+                select.Invoke(window, new object[] { SearchScope.Applications });
+                DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+                int target = Math.Min(600, Screen.FromControl(window).WorkingArea.Height - 40);
+                while (window.Height != target && DateTime.UtcNow < deadline) { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                TestRunner.Equal(initial, nativeUpdates, "App expansion must not reset DWM frame composition during or after its resize animation.");
+                input.Focus(); hover.Invoke(window, new object[] { new Point(20, 20) });
+                deadline = DateTime.UtcNow.AddSeconds(2);
+                while (window.Height != 76 && DateTime.UtcNow < deadline) { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                TestRunner.Equal(initial, nativeUpdates, "Collapsing the panel must preserve the same native composition.");
+                window.HideLauncher();
+            }
+        }
         private static void ApplicationPanelExpandsAndReversesSmoothly()
         {
             if (!Motion.SystemAllowsAnimation()) return;

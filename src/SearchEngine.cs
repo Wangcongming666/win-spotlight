@@ -17,7 +17,7 @@ namespace FocusSearch
         public SearchEngine(IAppIndex index, IFileSearchProvider files, IDictionary<string, UsageRecord> history)
         { _index = index; _files = files; _history = history; FileSearchEnabled = true; }
         public IList<SearchItem> Recent(int limit)
-        { return _index.Items.OrderByDescending(Usage).ThenBy(i => i.Name).Take(Math.Max(0, limit)).ToList(); }
+        { return _index.Items.Where(i => i.Kind == ResultKind.Application).OrderByDescending(Usage).ThenBy(i => i.Name).Take(Math.Max(0, limit)).ToList(); }
         private int Usage(SearchItem item)
         { lock (_historyGate) { UsageRecord record; return _history.TryGetValue(item.Path, out record) ? Math.Min(30, record.LaunchCount) * 10 : 0; } }
         public void RecordLaunch(string path)
@@ -30,12 +30,14 @@ namespace FocusSearch
             }
         }
         public async Task<IList<SearchItem>> SearchAsync(string query, int limit, CancellationToken token)
+        { return await SearchAsync(query, limit, token, SearchScope.All).ConfigureAwait(false); }
+        public async Task<IList<SearchItem>> SearchAsync(string query, int limit, CancellationToken token, SearchScope scope)
         {
             token.ThrowIfCancellationRequested();
             query = (query ?? string.Empty).Trim();
-            if (query.Length == 0) return Recent(limit);
-            var candidates = _index.Items.Where(i => Match(query, i) > 0).ToList();
-            if (FileSearchEnabled && query.Length >= 2)
+            if (query.Length == 0) return scope == SearchScope.All || scope == SearchScope.Applications ? Recent(limit) : new List<SearchItem>();
+            var candidates = _index.Items.Where(i => MatchesScope(i, scope) && Match(query, i) > 0).ToList();
+            if (FileSearchEnabled && scope != SearchScope.Applications && query.Length >= 2)
             {
                 await _fileGate.WaitAsync(token).ConfigureAwait(false);
                 try
@@ -46,14 +48,27 @@ namespace FocusSearch
                 finally { _fileGate.Release(); }
             }
             token.ThrowIfCancellationRequested();
-            return candidates.GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
-                .OrderByDescending(i => Match(query, i) + Usage(i) + (i.Kind == ResultKind.Application ? 200 : 0))
+            return candidates.Where(i => MatchesScope(i, scope)).GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
+                .OrderBy(i => i.Kind == ResultKind.Application ? 0 : i.Kind == ResultKind.Folder ? 1 : i.Kind == ResultKind.File ? 2 : 3)
+                .ThenByDescending(i => Match(query, i) + Usage(i))
                 .ThenBy(i => i.Name).Take(Math.Max(0, Math.Min(8, limit))).ToList();
         }
-        private static int Match(string query, SearchItem item) { return Math.Max(FuzzyMatcher.Score(query, item.Name), FuzzyMatcher.Score(query, item.Path) / 2); }
+        private static bool MatchesScope(SearchItem item, SearchScope scope)
+        {
+            return scope == SearchScope.All
+                || (scope == SearchScope.Applications && item.Kind == ResultKind.Application)
+                || (scope == SearchScope.Folders && item.Kind == ResultKind.Folder)
+                || (scope == SearchScope.Files && item.Kind == ResultKind.File);
+        }
+        private static int Match(string query, SearchItem item)
+        {
+            int name = FuzzyMatcher.Score(query, item.Name);
+            int path = !string.IsNullOrWhiteSpace(query) && item.Path.IndexOf(query.Trim(), StringComparison.OrdinalIgnoreCase) >= 0 ? FuzzyMatcher.Score(query, item.Path) / 2 : 0;
+            return Math.Max(name, path);
+        }
         public IList<SearchItem> SearchApplications(string query, int limit)
         {
-            return _index.Items.Where(i => Match(query, i) > 0).OrderByDescending(i => Match(query, i) + Usage(i)).ThenBy(i => i.Name).Take(Math.Min(8, Math.Max(0, limit))).ToList();
+            return _index.Items.Where(i => i.Kind == ResultKind.Application && Match(query, i) > 0).OrderByDescending(i => Match(query, i) + Usage(i)).ThenBy(i => i.Name).Take(Math.Min(8, Math.Max(0, limit))).ToList();
         }
     }
 }

@@ -1,11 +1,83 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 namespace FocusSearch.Tests
 {
     internal static class SearchEngineTests
     {
-        public static void Register(ICollection<Action> tests) { tests.Add(QueryEscapesQuotes); tests.Add(CancelledSearchDoesNotReturnResults); tests.Add(SearchLimitsAndDeduplicates); tests.Add(UsageUpdatesRecentOrdering); tests.Add(ApplicationSearchMatchesPath); tests.Add(ExecutingFileSearchCanBeCancelled); }
+        public static void Register(ICollection<Action> tests) { tests.Add(QueryEscapesQuotes); tests.Add(CancelledSearchDoesNotReturnResults); tests.Add(SearchLimitsAndDeduplicates); tests.Add(UsageUpdatesRecentOrdering); tests.Add(ApplicationSearchMatchesPath); tests.Add(ExecutingFileSearchCanBeCancelled); tests.Add(CategoriesFilterResultsAndSkipUnneededFileSearch); tests.Add(ApplicationViewsExcludeNonApplications); tests.Add(SearchOrdersApplicationsBeforeFoldersBeforeFiles); }
+        private static void SearchOrdersApplicationsBeforeFoldersBeforeFiles()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "FocusSearchOrder-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                string document = Path.Combine(root, "wx");
+                File.WriteAllText(document, "fixture");
+                Directory.CreateDirectory(Path.Combine(root, "WXWork"));
+                Directory.CreateDirectory(Path.Combine(root, "WXWorkCefCache"));
+                var index = new FixtureIndex { Items = new List<SearchItem> {
+                    new SearchItem { Name = "微信", Path = "wechat.lnk", Kind = ResultKind.Application },
+                    new SearchItem { Name = "wx", Path = "exact-app.lnk", Kind = ResultKind.Application }
+                } };
+                var engine = new SearchEngine(index, new LocalFileProvider(new[] { root }), new Dictionary<string, UsageRecord>());
+                for (int i = 0; i < 30; i++) engine.RecordLaunch(document);
+                var results = engine.SearchAsync("wx", 8, CancellationToken.None).GetAwaiter().GetResult();
+                TestRunner.Equal(5, results.Count, "Combined search must retain both apps, both folders and the document.");
+                TestRunner.Equal("exact-app.lnk", results[0].Path, "Within applications, exact matches must rank above initials.");
+                TestRunner.Equal("wechat.lnk", results[1].Path, "WeChat initials must rank above better-matching folders and frequently used files.");
+                TestRunner.Equal(ResultKind.Folder, results[2].Kind, "Folders must follow applications.");
+                TestRunner.Equal(ResultKind.Folder, results[3].Kind, "All folders must precede files.");
+                TestRunner.Equal(document, results[4].Path, "An exact and frequently used file must still follow folders.");
+                TestRunner.Equal(ResultKind.Application, engine.SearchAsync("wx", 1, CancellationToken.None).GetAwaiter().GetResult()[0].Kind, "Type priority must apply before truncating results.");
+            }
+            finally { Directory.Delete(root, true); }
+        }
+        private static void ApplicationViewsExcludeNonApplications()
+        {
+            var items = new List<SearchItem> {
+                new SearchItem { Name = "Note app", Path = "app", Kind = ResultKind.Application },
+                new SearchItem { Name = "Note document", Path = "document.lnk", Kind = ResultKind.File },
+                new SearchItem { Name = "Note folder", Path = "folder.lnk", Kind = ResultKind.Folder },
+                new SearchItem { Name = "Note website", Path = "website.url", Kind = ResultKind.Url }
+            };
+            var files = new CategoryFiles();
+            var engine = new SearchEngine(new FixtureIndex { Items = items }, files, new Dictionary<string, UsageRecord>()) { FileSearchEnabled = false };
+            engine.RecordLaunch("folder.lnk");
+            TestRunner.Equal(1, engine.Recent(10000).Count, "Application grid must exclude non-apps even when frequently opened.");
+            TestRunner.Equal("app", engine.Recent(10000)[0].Path, "The remaining grid entry must be the application.");
+            TestRunner.Equal(1, engine.SearchApplications("note", 8).Count, "Immediate application results must exclude files, folders and websites.");
+            TestRunner.Equal(1, engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.Applications).GetAwaiter().GetResult().Count, "Application category must exclude non-app shortcuts.");
+            TestRunner.Equal(4, engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.All).GetAwaiter().GetResult().Count, "Spotlight must retain indexed non-app shortcuts.");
+            engine.FileSearchEnabled = true;
+            TestRunner.Equal(2, engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.Folders).GetAwaiter().GetResult().Count, "Folder search must include both folder shortcuts and file-provider folders.");
+            TestRunner.Equal(2, engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.Files).GetAwaiter().GetResult().Count, "File search must include both document shortcuts and file-provider files.");
+        }
+        private sealed class CategoryFiles : IFileSearchProvider
+        {
+            public int Calls;
+            public IList<SearchItem> Search(string query, int limit, CancellationToken token)
+            {
+                Calls++; return new List<SearchItem> { new SearchItem { Name = "note.txt", Path = "file", Kind = ResultKind.File }, new SearchItem { Name = "notes", Path = "folder", Kind = ResultKind.Folder } };
+            }
+        }
+        private static void CategoriesFilterResultsAndSkipUnneededFileSearch()
+        {
+            var files = new CategoryFiles();
+            var engine = new SearchEngine(new FixtureIndex { Items = new List<SearchItem> { new SearchItem { Name = "Notepad", Path = "app", Kind = ResultKind.Application } } }, files, new Dictionary<string, UsageRecord>());
+            var apps = engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.Applications).GetAwaiter().GetResult();
+            TestRunner.Equal(1, apps.Count, "Applications category must show only apps.");
+            TestRunner.Equal(0, files.Calls, "Applications category must not query the file provider.");
+            var folders = engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.Folders).GetAwaiter().GetResult();
+            TestRunner.Equal(1, folders.Count, "Folders category must exclude files and apps.");
+            TestRunner.Equal(ResultKind.Folder, folders[0].Kind, "Folders category must return actual folders.");
+            var documents = engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.Files).GetAwaiter().GetResult();
+            TestRunner.Equal(1, documents.Count, "Files category must exclude folders and apps.");
+            TestRunner.Equal(ResultKind.File, documents[0].Kind, "Files category must return files.");
+            TestRunner.Equal(3, engine.SearchAsync("note", 8, CancellationToken.None, SearchScope.All).GetAwaiter().GetResult().Count, "All category must combine app and file results.");
+            TestRunner.Equal(0, engine.SearchAsync("", 8, CancellationToken.None, SearchScope.Folders).GetAwaiter().GetResult().Count, "Empty folder queries must not expose application history.");
+        }
         private sealed class BlockingFiles : IFileSearchProvider
         {
             public readonly ManualResetEvent Entered = new ManualResetEvent(false);

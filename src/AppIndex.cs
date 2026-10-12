@@ -68,7 +68,7 @@ namespace FocusSearch
             if (handler != null) handler(this, EventArgs.Empty);
         }
 
-        private static void Scan(string directory, IDictionary<string, SearchItem> found, ShortcutResolver shortcuts)
+        private static void Scan(string directory, IDictionary<string, SearchItem> found, ShortcutResolver shortcuts, bool includeExecutables = true)
         {
             try
             {
@@ -76,13 +76,35 @@ namespace FocusSearch
                 {
                     string extension = Path.GetExtension(file).ToLowerInvariant();
                     if (extension != ".lnk" && extension != ".url" && extension != ".appref-ms" && extension != ".exe") continue;
-                    string iconPath;
-                    string identity = shortcuts.Identity(file, out iconPath);
-                    found[identity] = new SearchItem { Name = Path.GetFileNameWithoutExtension(file), Path = file, Detail = directory, IconKey = iconPath, Kind = extension == ".url" ? ResultKind.Url : ResultKind.Application };
+                    // Nested executables are often project/build artifacts, not app entries.
+                    if (extension == ".exe" && !includeExecutables) continue;
+                    string iconPath, arguments;
+                    string identity = shortcuts.Identity(file, out iconPath, out arguments);
+                    ResultKind kind = extension == ".url" ? ResultKind.Url : ResultKind.Application;
+                    if (extension == ".lnk")
+                    {
+                        string target = Environment.ExpandEnvironmentVariables(iconPath);
+                        string targetExtension = Path.GetExtension(target).ToLowerInvariant();
+                        bool executable = targetExtension == ".exe" || targetExtension == ".com" || targetExtension == ".bat" || targetExtension == ".cmd" || targetExtension == ".appref-ms";
+                        kind = Directory.Exists(target) ? ResultKind.Folder
+                            : executable && File.Exists(target) ? ResultKind.Application : ResultKind.File;
+                        if (string.Equals(Path.GetFileName(target), "explorer.exe", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(arguments)
+                            && arguments.IndexOf("shell:AppsFolder\\", StringComparison.OrdinalIgnoreCase) < 0)
+                        {
+                            string location = Environment.ExpandEnvironmentVariables(arguments.Trim().Trim('"'));
+                            kind = File.Exists(location) ? ResultKind.File : ResultKind.Folder;
+                        }
+                        if (string.Equals(Path.GetFileName(target), "control.exe", StringComparison.OrdinalIgnoreCase)
+                            && arguments.IndexOf("Microsoft.AdministrativeTools", StringComparison.OrdinalIgnoreCase) >= 0)
+                            kind = ResultKind.Folder;
+                        if (string.Equals(Path.GetFileName(target), "hh.exe", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(arguments))
+                            kind = ResultKind.File;
+                    }
+                    found[identity] = new SearchItem { Name = Path.GetFileNameWithoutExtension(file), Path = file, Detail = directory, IconKey = iconPath, Kind = kind };
                 }
                 foreach (string child in Directory.GetDirectories(directory))
                 {
-                    if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) == 0) Scan(child, found, shortcuts);
+                    if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) == 0) Scan(child, found, shortcuts, false);
                 }
             }
             catch (IOException) { }

@@ -2,6 +2,7 @@ using System;
 
 namespace FocusSearch
 {
+    internal enum SearchScope { All, Applications, Folders, Files }
     internal enum ResultKind
     {
         Application,

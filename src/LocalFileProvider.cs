@@ -42,6 +42,7 @@ namespace FocusSearch
                 {
                     if (matches.Count >= limit || inspected >= 5000 || watch.ElapsedMilliseconds > 250) break;
                     token.ThrowIfCancellationRequested();
+                    if (child.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) matches.Add(new SearchItem { Name = Path.GetFileName(child), Path = child, Detail = child, IconKey = child, Kind = ResultKind.Folder });
                     if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) == 0) Scan(child, depth + 1, query, limit, matches, watch, ref inspected, token);
                 }
             }

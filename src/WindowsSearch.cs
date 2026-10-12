@@ -40,7 +40,7 @@ namespace FocusSearch
                                 token.ThrowIfCancellationRequested();
                                 string path = Convert.ToString(reader.GetValue(1));
                                 if (string.IsNullOrWhiteSpace(path)) continue;
-                                items.Add(new SearchItem { Name = Convert.ToString(reader.GetValue(0)), Path = path, Detail = path, IconKey = path, Kind = ResultKind.File });
+                                items.Add(new SearchItem { Name = Convert.ToString(reader.GetValue(0)), Path = path, Detail = path, IconKey = path, Kind = Directory.Exists(path) ? ResultKind.Folder : ResultKind.File });
                             }
                         }
                     }

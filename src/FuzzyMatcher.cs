@@ -11,8 +11,8 @@ namespace FocusSearch
                 return 0;
             }
 
-            query = query.Trim();
-            candidate = candidate.Trim();
+            query = query.Trim().Normalize(System.Text.NormalizationForm.FormKC);
+            candidate = candidate.Trim().Normalize(System.Text.NormalizationForm.FormKC);
 
             if (string.Equals(query, candidate, StringComparison.OrdinalIgnoreCase))
             {
@@ -30,6 +30,7 @@ namespace FocusSearch
                 return 6000 - Math.Min(1000, substringIndex * 8 + candidate.Length - query.Length);
             }
 
+            int aliasScore = SearchAliases.Score(query, candidate);
             int queryIndex = 0;
             int firstMatch = -1;
             int lastMatch = -1;
@@ -49,12 +50,12 @@ namespace FocusSearch
 
             if (queryIndex != query.Length)
             {
-                return 0;
+                return aliasScore;
             }
 
             int span = lastMatch - firstMatch + 1;
             int gaps = span - query.Length;
-            return Math.Max(1, 3000 - firstMatch * 10 - gaps * 20 - (candidate.Length - query.Length));
+            return Math.Max(aliasScore, Math.Max(1, 3000 - firstMatch * 10 - gaps * 20 - (candidate.Length - query.Length)));
         }
     }
 }

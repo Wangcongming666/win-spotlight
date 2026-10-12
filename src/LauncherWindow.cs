@@ -109,7 +109,9 @@ namespace FocusSearch
                 {
                     _previewTimer.Stop();
                     _canvas.GridMode = false; _canvas.Visible = true;
-                    var immediate = _scope == SearchScope.All || _scope == SearchScope.Applications ? _engine.SearchApplications(_input.Text, 8) : new List<SearchItem>(); _canvas.SetItems(immediate);
+                    string extension;
+                    bool filesOnly = _scope == SearchScope.All && FileExtensionQuery.TryParse(_input.Text, out extension);
+                    var immediate = !filesOnly && (_scope == SearchScope.All || _scope == SearchScope.Applications) ? _engine.SearchApplications(_input.Text, 8) : new List<SearchItem>(); _canvas.SetItems(immediate);
                     _footer.Text = "正在搜索文件…   Enter 打开当前应用   Esc 收起";
                 }
                 if (!_presenting) _debounce.Start();

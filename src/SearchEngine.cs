@@ -36,21 +36,25 @@ namespace FocusSearch
             token.ThrowIfCancellationRequested();
             query = (query ?? string.Empty).Trim();
             if (query.Length == 0) return scope == SearchScope.All || scope == SearchScope.Applications ? Recent(limit) : new List<SearchItem>();
-            var candidates = _index.Items.Where(i => MatchesScope(i, scope) && Match(query, i) > 0).ToList();
+            string extension = null, parsedExtension;
+            if (scope != SearchScope.Applications && scope != SearchScope.Folders && FileExtensionQuery.TryParse(query, out parsedExtension))
+            { extension = parsedExtension; scope = SearchScope.Files; }
+            var candidates = _index.Items.Where(i => MatchesScope(i, scope) && (extension == null ? Match(query, i) > 0 : FileExtensionQuery.Matches(i, extension))).ToList();
             if (FileSearchEnabled && scope != SearchScope.Applications && query.Length >= 2)
             {
                 await _fileGate.WaitAsync(token).ConfigureAwait(false);
                 try
                 {
                     token.ThrowIfCancellationRequested();
-                    candidates.AddRange(await Task.Run(() => _files.Search(query, 32, token), token).ConfigureAwait(false));
+                    var extensionProvider = _files as IFileExtensionSearchProvider;
+                    candidates.AddRange(await Task.Run(() => extension != null && extensionProvider != null ? extensionProvider.SearchByExtension(extension, 32, token) : _files.Search(extension ?? query, 32, token), token).ConfigureAwait(false));
                 }
                 finally { _fileGate.Release(); }
             }
             token.ThrowIfCancellationRequested();
-            return candidates.Where(i => MatchesScope(i, scope)).GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
+            return candidates.Where(i => MatchesScope(i, scope) && (extension == null || FileExtensionQuery.Matches(i, extension))).GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
                 .OrderBy(i => i.Kind == ResultKind.Application ? 0 : i.Kind == ResultKind.Folder ? 1 : i.Kind == ResultKind.File ? 2 : 3)
-                .ThenByDescending(i => Match(query, i) + Usage(i))
+                .ThenByDescending(i => Match(extension ?? query, i) + Usage(i))
                 .ThenBy(i => i.Name).Take(Math.Max(0, Math.Min(8, limit))).ToList();
         }
         private static bool MatchesScope(SearchItem item, SearchScope scope)

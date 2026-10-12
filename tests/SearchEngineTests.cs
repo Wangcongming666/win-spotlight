@@ -6,7 +6,37 @@ namespace FocusSearch.Tests
 {
     internal static class SearchEngineTests
     {
-        public static void Register(ICollection<Action> tests) { tests.Add(QueryEscapesQuotes); tests.Add(CancelledSearchDoesNotReturnResults); tests.Add(SearchLimitsAndDeduplicates); tests.Add(UsageUpdatesRecentOrdering); tests.Add(ApplicationSearchMatchesPath); tests.Add(ExecutingFileSearchCanBeCancelled); tests.Add(CategoriesFilterResultsAndSkipUnneededFileSearch); tests.Add(ApplicationViewsExcludeNonApplications); tests.Add(SearchOrdersApplicationsBeforeFoldersBeforeFiles); }
+        public static void Register(ICollection<Action> tests) { tests.Add(QueryEscapesQuotes); tests.Add(CancelledSearchDoesNotReturnResults); tests.Add(SearchLimitsAndDeduplicates); tests.Add(UsageUpdatesRecentOrdering); tests.Add(ApplicationSearchMatchesPath); tests.Add(ExecutingFileSearchCanBeCancelled); tests.Add(CategoriesFilterResultsAndSkipUnneededFileSearch); tests.Add(ApplicationViewsExcludeNonApplications); tests.Add(SearchOrdersApplicationsBeforeFoldersBeforeFiles); tests.Add(MarkdownExtensionQueriesReturnDocumentsInsteadOfApplicationAliases); }
+        private static void MarkdownExtensionQueriesReturnDocumentsInsteadOfApplicationAliases()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "FocusMdExtension-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                File.WriteAllText(Path.Combine(root, "KNN算法.md"), "fixture");
+                File.WriteAllText(Path.Combine(root, "集成学习.MD"), "fixture");
+                File.WriteAllText(Path.Combine(root, "普通文档.txt"), "fixture");
+                Directory.CreateDirectory(Path.Combine(root, "md-folder"));
+                var apps = new List<SearchItem>();
+                for (int i = 0; i < 12; i++) apps.Add(new SearchItem { Name = "MD App " + i, Path = "app" + i, Kind = ResultKind.Application });
+                var engine = new SearchEngine(new FixtureIndex { Items = apps }, new LocalFileProvider(new[] { root }), new Dictionary<string, UsageRecord>());
+                foreach (string query in new[] { "md", ".md", "*.md" })
+                {
+                    var results = engine.SearchAsync(query, 8, CancellationToken.None).GetAwaiter().GetResult();
+                    TestRunner.Equal(2, results.Count, "Extension queries must return both Markdown documents even when more than eight application aliases match.");
+                    foreach (var result in results)
+                    {
+                        TestRunner.Equal(ResultKind.File, result.Kind, "Extension search must exclude apps and folders.");
+                        TestRunner.Equal(".md", Path.GetExtension(result.Path).ToLowerInvariant(), "Matching a parent directory must not include unrelated file extensions.");
+                    }
+                }
+                TestRunner.Equal(8, engine.SearchAsync("md", 8, CancellationToken.None, SearchScope.Applications).GetAwaiter().GetResult().Count, "An explicitly selected application category must still search application names.");
+                var folders = engine.SearchAsync("md", 8, CancellationToken.None, SearchScope.Folders).GetAwaiter().GetResult();
+                TestRunner.Equal(1, folders.Count, "An explicitly selected folder category must still find folders named md, without converting to extension search.");
+                TestRunner.Equal(ResultKind.Folder, folders[0].Kind, "Folder intent must remain independent of file-type intent.");
+            }
+            finally { Directory.Delete(root, true); }
+        }
         private static void SearchOrdersApplicationsBeforeFoldersBeforeFiles()
         {
             string root = Path.Combine(Path.GetTempPath(), "FocusSearchOrder-" + Guid.NewGuid().ToString("N"));

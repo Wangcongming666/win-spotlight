@@ -37,8 +37,12 @@ namespace FocusSearch
         private readonly System.Windows.Forms.Timer _tabAnimationTimer;
         private readonly Stopwatch _tabAnimationClock = new Stopwatch();
         private readonly double[] _tabAnimationFrom = new double[4];
+        private readonly System.Windows.Forms.Timer _previewTimer;
+        private readonly Stopwatch _previewClock = new Stopwatch();
+        private int _previewFromHeight, _previewTargetHeight, _previewContentHeight;
+        private int _previewFromTop, _previewTargetTop, _previewAnchorTop;
         private int SearchBarWidth { get { return _fullScreen ? 600 : Math.Max(200, Width - 256); } }
-        private bool Compact { get { return !_fullScreen && !_browseApps && _input.TextLength == 0; } }
+        private bool Compact { get { return !_fullScreen && !_browseApps && _input.TextLength == 0 && (_previewTimer == null || !_previewTimer.Enabled); } }
         public bool IsHiding { get { return _animator.IsClosing; } }
         public bool IsApplicationsView { get { return _fullScreen; } }
         public AppSettings Settings { get; set; }
@@ -81,6 +85,8 @@ namespace FocusSearch
             _tabTimer.Tick += delegate { UpdateHoverState(PointToClient(Cursor.Position)); };
             _tabAnimationTimer = new System.Windows.Forms.Timer { Interval = 15 };
             _tabAnimationTimer.Tick += delegate { UpdateTabAnimation(); };
+            _previewTimer = new System.Windows.Forms.Timer { Interval = 15 };
+            _previewTimer.Tick += delegate { UpdatePreviewAnimation(); };
             _canvas.ActivateItem = delegate(SearchItem item) { if (LaunchRequested != null) LaunchRequested(item); };
             _canvas.ContextActionRequested = InvokeContextAction;
             _canvas.ContextMenuClosed += delegate { CheckDeactivation(); };
@@ -96,6 +102,7 @@ namespace FocusSearch
                 }
                 else
                 {
+                    _previewTimer.Stop();
                     _canvas.GridMode = false; _canvas.Visible = true;
                     var immediate = _scope == SearchScope.All || _scope == SearchScope.Applications ? _engine.SearchApplications(_input.Text, 8) : new List<SearchItem>(); _canvas.SetItems(immediate);
                     _footer.Text = "正在搜索文件…   Enter 打开当前应用   Esc 收起";
@@ -225,6 +232,7 @@ namespace FocusSearch
         }
         public void ShowLauncher(bool includeGrid, bool fullScreen)
         {
+            _previewTimer.Stop();
             _animator.Stop();
             if (Visible) FinishHide();
             _presenting = true;
@@ -250,6 +258,7 @@ namespace FocusSearch
                 Location = new Point(Math.Min(work.Right - Width - 12, work.Left + (work.Width - SearchBarWidth) / 2), work.Top + Math.Max(20, (work.Height - Height) / 3));
                 _input.SetBounds(54, 21, SearchBarWidth - 100, 34);
                 _canvas.SetBounds(18, 98, Width - 36, 120);
+                _previewAnchorTop = Top;
             }
             int tabLeft = _fullScreen ? _input.Right + 22 : SearchBarWidth + 10;
             for (int i = 0; i < _tabs.Length; i++) _tabs[i].SetBounds(tabLeft + i * 60, _fullScreen ? 58 : 10, 54, 54);
@@ -271,21 +280,49 @@ namespace FocusSearch
         }
         private void RefreshEmpty()
         {
-            _canvas.GridMode = _browseApps || _fullScreen;
+            bool closingPreview = !_browseApps && !_fullScreen && _input.TextLength == 0 && _canvas.GridMode && Height > 76;
+            _canvas.GridMode = _browseApps || _fullScreen || closingPreview;
             _canvas.Visible = _canvas.GridMode;
             _canvas.SetItems(_engine.Recent(10000));
-            _footer.Visible = _dismiss.Visible = !Compact;
+            _footer.Visible = _dismiss.Visible = !Compact || closingPreview;
             _footer.Text = _canvas.GridMode ? "双击打开   ·   右键更多   ·   滚轮翻页   ·   Esc 收起" : "应用、文件与文件夹   ·   Esc 收起";
         }
         private void LayoutEmpty()
         {
             if (!Visible || _fullScreen) return;
+            _animator.Stop(); _previewTimer.Stop();
+            Rectangle work = Screen.FromControl(this).WorkingArea;
+            _previewFromHeight = Height;
+            _previewTargetHeight = _browseApps ? Math.Min(600, work.Height - 40) : 76;
+            _previewFromTop = Top;
+            _previewTargetTop = _browseApps ? Math.Max(work.Top + 12, Math.Min(Top, work.Bottom - _previewTargetHeight - 12)) : _previewAnchorTop;
+            _previewContentHeight = _browseApps ? _previewTargetHeight : Math.Max(Height, _canvas.Height + 142);
+            bool animate = Settings.AnimationsEnabled && Motion.SystemAllowsAnimation() && (_previewFromHeight != _previewTargetHeight || _previewFromTop != _previewTargetTop);
+            if (animate) { _previewClock.Restart(); _previewTimer.Start(); }
+            ApplyPreviewFrame(animate ? _previewFromHeight : _previewTargetHeight, animate ? _previewFromTop : _previewTargetTop, !animate);
+        }
+        private void UpdatePreviewAnimation()
+        {
+            double progress = Math.Min(1, _previewClock.Elapsed.TotalMilliseconds / (_previewTargetHeight > _previewFromHeight ? 240 : 180));
+            double amount = Motion.EaseOut(progress);
+            int height = (int)Math.Round(_previewFromHeight + (_previewTargetHeight - _previewFromHeight) * amount);
+            int top = (int)Math.Round(_previewFromTop + (_previewTargetTop - _previewFromTop) * amount);
+            bool complete = progress >= 1 || (height == _previewTargetHeight && top == _previewTargetTop);
+            if (complete) _previewTimer.Stop();
+            ApplyPreviewFrame(height, top, complete);
+        }
+        private void ApplyPreviewFrame(int height, int top, bool complete)
+        {
             SuspendLayout();
             try
             {
-                Height = _browseApps ? Math.Min(600, Screen.FromControl(this).WorkingArea.Height - 40) : 76;
-                _canvas.Height = Math.Max(120, Height - 142); _footer.Top = Height - 32;
-                _footer.Visible = _dismiss.Visible = !Compact; UpdateWindowRegion();
+                SetBounds(Left, top, Width, height);
+                // Keep the grid's final geometry stable while the native window reveals it.
+                _canvas.Height = Math.Max(120, _previewContentHeight - 142);
+                _footer.Top = _previewContentHeight - 32; _dismiss.Top = _previewContentHeight - 36;
+                if (complete && !_browseApps && _input.TextLength == 0) { _canvas.Visible = false; _canvas.GridMode = false; }
+                _footer.Visible = _dismiss.Visible = !Compact;
+                UpdateWindowRegion(complete); Invalidate(true);
             }
             finally { ResumeLayout(); }
         }
@@ -311,6 +348,7 @@ namespace FocusSearch
         private void LayoutResults(int count)
         {
             if (_fullScreen) return;
+            _previewTimer.Stop();
             Rectangle work = Screen.FromControl(this).WorkingArea;
             SuspendLayout();
             try
@@ -325,6 +363,7 @@ namespace FocusSearch
         }
         public void HideLauncher()
         {
+            _previewTimer.Stop();
             _canvas.CloseItemMenu();
             ExpandTabs(false);
             _debounce.Stop(); if (_query != null) _query.Cancel();
@@ -334,6 +373,7 @@ namespace FocusSearch
         }
         private void FinishHide()
         {
+            _previewTimer.Stop();
             _tabAnimationTimer.Stop(); _tabsExpanded = false;
             foreach (var tab in _tabs) { tab.Visible = false; tab.RevealProgress = 0; }
             Hide(); if (_backdrop != null) { _backdrop.Dispose(); _backdrop = null; }
@@ -422,7 +462,7 @@ namespace FocusSearch
         }
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { _tabAnimationTimer.Dispose(); _tabTimer.Dispose(); _tabTips.Dispose(); _animator.Dispose(); if (_backdrop != null) _backdrop.Dispose(); _index.Changed -= IndexChanged; _debounce.Dispose(); if (_query != null) _query.Cancel(); }
+            if (disposing) { _previewTimer.Dispose(); _tabAnimationTimer.Dispose(); _tabTimer.Dispose(); _tabTips.Dispose(); _animator.Dispose(); if (_backdrop != null) _backdrop.Dispose(); _index.Changed -= IndexChanged; _debounce.Dispose(); if (_query != null) _query.Cancel(); }
             base.Dispose(disposing);
         }
     }

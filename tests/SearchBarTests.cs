@@ -9,7 +9,44 @@ namespace FocusSearch.Tests
     {
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr window, IntPtr region);
         [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr value);
-        public static void Register(ICollection<Action> tests) { tests.Add(InitialSearchBarAndHoverCategories); tests.Add(InstalledDouyinMatchesInitials); tests.Add(ApplicationPreviewCollapsesOnLeaveAndSearchStaysOpen); tests.Add(IndependentApplicationsViewHasNoSearchAndDoubleClickOpens); tests.Add(CategoryRevealAnimatesAndReversesWithoutJumping); }
+        public static void Register(ICollection<Action> tests) { tests.Add(InitialSearchBarAndHoverCategories); tests.Add(InstalledDouyinMatchesInitials); tests.Add(ApplicationPreviewCollapsesOnLeaveAndSearchStaysOpen); tests.Add(IndependentApplicationsViewHasNoSearchAndDoubleClickOpens); tests.Add(CategoryRevealAnimatesAndReversesWithoutJumping); tests.Add(ApplicationPanelExpandsAndReversesSmoothly); }
+        private static void ApplicationPanelExpandsAndReversesSmoothly()
+        {
+            if (!Motion.SystemAllowsAnimation()) return;
+            using (var index = new AppIndex(new string[0]))
+            using (var window = new LauncherWindow(index, new SearchEngine(index, new WindowsSearchProvider(), new Dictionary<string, UsageRecord>()), new AppSettings { AnimationsEnabled = false, HideOnDeactivate = false }))
+            {
+                window.ShowLauncher(true, false);
+                window.Settings.AnimationsEnabled = true;
+                var select = typeof(LauncherWindow).GetMethod("SelectScope", BindingFlags.NonPublic | BindingFlags.Instance);
+                var hover = typeof(LauncherWindow).GetMethod("UpdateHoverState", BindingFlags.NonPublic | BindingFlags.Instance);
+                var canvas = (LauncherCanvas)typeof(LauncherWindow).GetField("_canvas", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+                var input = (TextBox)typeof(LauncherWindow).GetField("_input", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+                var tabs = (SearchTabButton[])typeof(LauncherWindow).GetField("_tabs", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+                int target = Math.Min(600, Screen.FromControl(window).WorkingArea.Height - 40);
+                select.Invoke(window, new object[] { SearchScope.Applications }); tabs[0].Focus();
+                TestRunner.Equal(true, window.Height < target, "App preview must not jump directly to its final size.");
+                DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+                while (window.Height == 76 && DateTime.UtcNow < deadline) { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                int partial = window.Height;
+                TestRunner.Equal(true, partial > 76 && partial < target, "App panel must display an intermediate height.");
+                Capture(window, "application-panel-mid.png");
+                input.Focus(); hover.Invoke(window, new object[] { new Point(20, 20) });
+                TestRunner.Equal(partial, window.Height, "Reversing to close must continue from the current height.");
+                TestRunner.Equal(true, canvas.Visible && canvas.GridMode, "The app grid must remain visible during panel collapse.");
+                select.Invoke(window, new object[] { SearchScope.Applications }); tabs[0].Focus();
+                TestRunner.Equal(partial, window.Height, "Reopening midway must not reset panel size.");
+                deadline = DateTime.UtcNow.AddSeconds(2);
+                while (window.Height != target && DateTime.UtcNow < deadline) { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                TestRunner.Equal(target, window.Height, "Expanded panel must settle at its final size.");
+                input.Focus(); hover.Invoke(window, new object[] { new Point(20, 20) });
+                deadline = DateTime.UtcNow.AddSeconds(2);
+                while (window.Height != 76 && DateTime.UtcNow < deadline) { Application.DoEvents(); System.Threading.Thread.Sleep(5); }
+                TestRunner.Equal(76, window.Height, "Collapsed panel must return to the compact search bar.");
+                TestRunner.Equal(false, canvas.Visible, "The app grid must disappear only after collapse finishes.");
+                window.HideLauncher();
+            }
+        }
         private static void CategoryRevealAnimatesAndReversesWithoutJumping()
         {
             var progress = typeof(SearchTabButton).GetProperty("RevealProgress");

@@ -15,6 +15,7 @@ namespace FocusSearch.Tests
             {
                 UiSmoke.Run(); return;
             }
+            if (args.Length > 0 && args[0] == "--perf-smoke") { PerformanceSmoke.Run(); return; }
             var tests = new List<Action>();
             FuzzyMatcherTests.Register(tests);
             SettingsStoreTests.Register(tests);
@@ -23,6 +24,9 @@ namespace FocusSearch.Tests
             HotkeyTests.Register(tests);
             LocalFileTests.Register(tests);
             GridNavigationTests.Register(tests);
+            MotionTests.Register(tests);
+            SearchInputTests.Register(tests);
+            IconCacheTests.Register(tests);
 
             foreach (var test in tests)
             {

@@ -47,6 +47,7 @@ namespace FocusSearch
         private readonly HotkeyWindow _hotkeys;
         private readonly HotkeyCoordinator _coordinator;
         private readonly NotifyIcon _tray;
+        private readonly Icon _trayIcon;
         private readonly RegisteredWaitHandle _wakeRegistration;
         private readonly RegisteredWaitHandle _quitRegistration;
         public TrayContext(EventWaitHandle wake, EventWaitHandle quit, bool hidden)
@@ -68,7 +69,8 @@ namespace FocusSearch
             menu.Items.Add("关于", null, delegate { MessageBox.Show("聚焦搜索\n原生 Windows 应用启动与文件搜索工具\nAlt + Space 搜索 · Alt + A 应用程序", "聚焦搜索"); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("退出", null, delegate { ExitThread(); });
-            _tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "聚焦搜索 · Alt + Space", ContextMenuStrip = menu, Visible = true };
+            _trayIcon = ApplicationIcon.Create();
+            _tray = new NotifyIcon { Icon = _trayIcon, Text = "聚焦搜索 · Alt + Space", ContextMenuStrip = menu, Visible = true };
             _tray.DoubleClick += delegate { Toggle(false); };
             if (!_coordinator.Apply(_settings)) _tray.ShowBalloonTip(5000, "快捷键注册失败", "可从托盘打开设置修改快捷键。", ToolTipIcon.Warning);
             _wakeRegistration = ThreadPool.RegisterWaitForSingleObject(wake, delegate { try { _launcher.BeginInvoke((Action)delegate { Show(false); }); } catch (InvalidOperationException) { } }, null, Timeout.Infinite, false);
@@ -76,7 +78,7 @@ namespace FocusSearch
             ThreadPool.QueueUserWorkItem(delegate { _index.Refresh(); });
             if (!hidden) Show(false);
         }
-        private void Toggle(bool grid) { if (_launcher.Visible) _launcher.HideLauncher(); else Show(grid); }
+        private void Toggle(bool grid) { if (_launcher.Visible && !_launcher.IsHiding) _launcher.HideLauncher(); else Show(grid); }
         private void Show(bool grid) { _launcher.ShowLauncher(grid || (_settings.CombinedMode && _settings.AppGridEnabled), grid); }
         private void Launch(SearchItem item)
         {
@@ -121,7 +123,7 @@ namespace FocusSearch
         }
         protected override void ExitThreadCore()
         {
-            _quitRegistration.Unregister(null); _wakeRegistration.Unregister(null); _tray.Visible = false; _tray.Dispose(); _coordinator.Dispose(); _hotkeys.Dispose(); _launcher.Dispose(); _index.Dispose(); base.ExitThreadCore();
+            _quitRegistration.Unregister(null); _wakeRegistration.Unregister(null); _tray.Visible = false; _tray.Dispose(); _trayIcon.Dispose(); _coordinator.Dispose(); _hotkeys.Dispose(); _launcher.Dispose(); _index.Dispose(); base.ExitThreadCore();
         }
     }
 }

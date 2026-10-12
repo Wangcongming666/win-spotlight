@@ -57,6 +57,7 @@ namespace FocusSearch
         public bool FileSearchEnabled { get; set; }
         public bool StartWithWindows { get; set; }
         public bool HideOnDeactivate { get; set; }
+        public bool AnimationsEnabled { get; set; }
         public HotkeySpec SearchHotkey { get; set; }
         public HotkeySpec GridHotkey { get; set; }
 
@@ -66,6 +67,7 @@ namespace FocusSearch
             AppGridEnabled = true;
             FileSearchEnabled = true;
             HideOnDeactivate = true;
+            AnimationsEnabled = true;
             SearchHotkey = new HotkeySpec(0x0001, 0x20);
             GridHotkey = new HotkeySpec(0x0001, 0x41);
         }

@@ -50,6 +50,7 @@ namespace FocusSearch
                 settings.FileSearchEnabled = ReadBoolean(attributes, "fileSearchEnabled", settings.FileSearchEnabled);
                 settings.StartWithWindows = ReadBoolean(attributes, "startWithWindows", settings.StartWithWindows);
                 settings.HideOnDeactivate = ReadBoolean(attributes, "hideOnDeactivate", settings.HideOnDeactivate);
+                settings.AnimationsEnabled = ReadBoolean(attributes, "animationsEnabled", settings.AnimationsEnabled);
                 settings.SearchHotkey = ReadHotkey(ReadElementAttributes(xml, "searchHotkey"), settings.SearchHotkey);
                 settings.GridHotkey = ReadHotkey(ReadElementAttributes(xml, "gridHotkey"), settings.GridHotkey);
                 return settings;
@@ -79,6 +80,7 @@ namespace FocusSearch
                 writer.WriteAttributeString("fileSearchEnabled", XmlConvert.ToString(settings.FileSearchEnabled));
                 writer.WriteAttributeString("startWithWindows", XmlConvert.ToString(settings.StartWithWindows));
                 writer.WriteAttributeString("hideOnDeactivate", XmlConvert.ToString(settings.HideOnDeactivate));
+                writer.WriteAttributeString("animationsEnabled", XmlConvert.ToString(settings.AnimationsEnabled));
                 WriteHotkey(writer, "searchHotkey", settings.SearchHotkey ?? new AppSettings().SearchHotkey);
                 WriteHotkey(writer, "gridHotkey", settings.GridHotkey ?? new AppSettings().GridHotkey);
                 writer.WriteEndElement();

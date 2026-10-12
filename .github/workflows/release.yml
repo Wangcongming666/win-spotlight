@@ -1,0 +1,40 @@
+name: Build and release Windows app
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: focussearch-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build and test
+        shell: pwsh
+        run: ./build.ps1 -Test
+      - name: Package portable app
+        shell: pwsh
+        run: ./package.ps1 -SkipBuild
+      - uses: actions/upload-artifact@v7
+        with:
+          name: FocusSearch-windows-portable
+          path: |
+            dist/*-windows-portable.zip
+            dist/FocusSearch.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Publish downloadable release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tools/PublishRelease.ps1

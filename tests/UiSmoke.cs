@@ -34,10 +34,32 @@ namespace FocusSearch.Tests
                 {
                     int phase = 0;
                     timer.Tick += delegate {
-                        string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, phase == 0 ? "combined.png" : "launchpad.png");
-                        using (var image = new Bitmap(window.Width, window.Height)) { window.DrawToBitmap(image, new Rectangle(0, 0, image.Width, image.Height)); image.Save(path); }
-                        if (phase++ == 0) window.ShowLauncher(true, true);
-                        else { timer.Stop(); Application.Exit(); }
+                        if (phase < 2)
+                        {
+                            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, phase == 0 ? "combined.png" : "launchpad.png");
+                            using (var image = new Bitmap(window.Width, window.Height)) { window.DrawToBitmap(image, new Rectangle(0, 0, image.Width, image.Height)); image.Save(path); }
+                            using (var image = new Bitmap(window.Width, window.Height))
+                            {
+                                using (var graphics = Graphics.FromImage(image)) graphics.CopyFromScreen(window.Location, Point.Empty, window.Size);
+                                image.Save(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, phase == 0 ? "combined-live.png" : "launchpad-live.png"));
+                            }
+                        }
+                        if (phase == 0) window.ShowLauncher(true, true);
+                        else if (phase == 1) { window.HideLauncher(); window.ShowLauncher(true, false); }
+                        else if (phase == 2)
+                        {
+                            TestRunner.Equal(true, window.Visible, "Reopening during close must remain visible.");
+                            TestRunner.Equal(false, window.IsHiding, "Reopening must cancel pending close.");
+                            TestRunner.Equal(true, window.Opacity >= 0.95, "Entrance must reach final opacity.");
+                            window.HideLauncher();
+                        }
+                        else
+                        {
+                            TestRunner.Equal(false, window.Visible, "Exit must finish and hide the window.");
+                            Console.WriteLine("Window animation open/interruption/close: PASS");
+                            timer.Stop(); Application.Exit();
+                        }
+                        phase++;
                     };
                     window.Shown += delegate { timer.Start(); };
                     window.ShowLauncher(true, false); Application.Run(window);

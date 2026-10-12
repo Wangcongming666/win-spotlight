@@ -34,6 +34,7 @@ namespace FocusSearch.Tests
                 var settings = new AppSettings();
                 settings.CombinedMode = false;
                 settings.FileSearchEnabled = false;
+                settings.AnimationsEnabled = false;
                 settings.SearchHotkey = new HotkeySpec(0x0002, 0x4B);
                 store.SaveSettings(settings);
 
@@ -44,6 +45,7 @@ namespace FocusSearch.Tests
                 }
                 TestRunner.Equal(false, loaded.CombinedMode, "Display mode must round-trip.");
                 TestRunner.Equal(false, loaded.FileSearchEnabled, "File search choice must round-trip.");
+                TestRunner.Equal(false, loaded.AnimationsEnabled, "Animation preference must round-trip.");
                 TestRunner.Equal((uint)0x0002, loaded.SearchHotkey.Modifiers, "Hotkey modifiers must round-trip.");
                 TestRunner.Equal((uint)0x4B, loaded.SearchHotkey.VirtualKey, "Hotkey key must round-trip.");
             });

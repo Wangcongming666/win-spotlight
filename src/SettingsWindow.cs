@@ -8,7 +8,7 @@ namespace FocusSearch
         public AppSettings Value { get; private set; }
         public SettingsWindow(AppSettings current)
         {
-            Text = "聚焦搜索设置"; ClientSize = new Size(480, 360); FormBorderStyle = FormBorderStyle.FixedDialog;
+            Text = "聚焦搜索设置"; ClientSize = new Size(480, 400); FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false; MinimizeBox = false; StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Microsoft YaHei UI", 10);
             var combined = Check("搜索框与应用程序一起显示", current.CombinedMode, 28);
@@ -16,11 +16,12 @@ namespace FocusSearch
             var files = Check("搜索 Windows 已索引文件", current.FileSearchEnabled, 108);
             var startup = Check("登录 Windows 时自动启动", current.StartWithWindows, 148);
             var hide = Check("失去焦点时自动收起", current.HideOnDeactivate, 188);
-            var search = HotkeyBox("搜索快捷键", current.SearchHotkey, 235);
-            var apps = HotkeyBox("独立应用页", current.GridHotkey, 273);
-            var save = new Button { Text = "保存", Left = 370, Top = 318, Width = 85 };
+            var animation = Check("启用流畅展开与收起动画", current.AnimationsEnabled, 228);
+            var search = HotkeyBox("搜索快捷键", current.SearchHotkey, 275);
+            var apps = HotkeyBox("独立应用页", current.GridHotkey, 313);
+            var save = new Button { Text = "保存", Left = 370, Top = 358, Width = 85 };
             save.Click += delegate {
-                Value = new AppSettings { CombinedMode = combined.Checked, AppGridEnabled = grid.Checked, FileSearchEnabled = files.Checked, StartWithWindows = startup.Checked, HideOnDeactivate = hide.Checked, SearchHotkey = ((HotkeySpec)search.Tag).Clone(), GridHotkey = ((HotkeySpec)apps.Tag).Clone() };
+                Value = new AppSettings { CombinedMode = combined.Checked, AppGridEnabled = grid.Checked, FileSearchEnabled = files.Checked, StartWithWindows = startup.Checked, HideOnDeactivate = hide.Checked, AnimationsEnabled = animation.Checked, SearchHotkey = ((HotkeySpec)search.Tag).Clone(), GridHotkey = ((HotkeySpec)apps.Tag).Clone() };
                 DialogResult = DialogResult.OK; Close();
             };
             Controls.Add(save);

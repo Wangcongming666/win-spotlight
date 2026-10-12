@@ -5,13 +5,14 @@
 [![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4)](#系统要求)
 [![Runtime](https://img.shields.io/badge/.NET%20Framework-4.8-512BD4)](#技术栈)
 [![Language](https://img.shields.io/badge/Language-C%23-239120)](#技术栈)
+[![Release](https://img.shields.io/github/v/release/Wangcongming666/win-spotlight)](https://github.com/Wangcongming666/win-spotlight/releases/latest)
 [![Build](https://github.com/Wangcongming666/win-spotlight/actions/workflows/release.yml/badge.svg)](https://github.com/Wangcongming666/win-spotlight/actions/workflows/release.yml)
 
 [下载发布版本](https://github.com/Wangcongming666/win-spotlight/releases) · [安装说明](docs/INSTALL.md) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/Wangcongming666/win-spotlight/issues)
 
 FocusSearch 借鉴 macOS Spotlight 与 Launchpad 的交互方式，提供紧凑搜索栏、分类搜索、全屏应用网格和玻璃质感界面。程序基于 Windows 桌面技术运行，无需额外的 Web 运行环境或后台服务。
 
-本文介绍 `main` 分支当前源码的功能。已发布版本的功能以对应版本的发布说明为准；尚未发布的变更列于[更新记录](CHANGELOG.md)。
+本文介绍 `main` 分支当前源码的功能。已发布版本的功能以对应版本的发布说明为准，各版本变更见[更新记录](CHANGELOG.md)。
 
 ## 目录
 

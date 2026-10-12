@@ -14,9 +14,25 @@ if ($release) {
     if ($release.draft) { throw "Release $tag is an existing draft. Check its assets before manually finishing or retrying publication." }
     Write-Output "Release $tag already exists; no existing assets were modified."; exit 0
 }
+$changelog = Get-Content -LiteralPath (Join-Path $projectRoot 'CHANGELOG.md') -Raw -Encoding utf8
+$sectionPattern = '(?ms)^##\s+' + [regex]::Escape($version) + '(?:\s+[^\r\n]*)?\r?\n(.*?)(?=^##\s|\z)'
+$section = [regex]::Match($changelog, $sectionPattern)
+if (-not $section.Success) { throw "CHANGELOG.md does not contain release notes for $version." }
+$downloadGuide = @'
+## 下载与使用
+
+适用于 Windows 10 / Windows 11 x64，需要 .NET Framework 4.8 或 4.8.1。
+
+1. 下载本版本的 `windows-portable.zip` 并解压到可写目录。
+2. 更新前先从托盘退出旧程序，再双击新的 `FocusSearch.exe`。
+3. `Alt + Space` 打开聚焦搜索，`Alt + A` 打开仅展示软件的应用网格。
+
+`SHA256SUMS.txt` 用于校验 ZIP 与可执行文件。配置和使用历史会保留，无需重新安装开发环境。
+'@
+$releaseNotes = $section.Groups[1].Value.Trim() + "`n`n" + $downloadGuide
 $body = @{
     tag_name = $tag; target_commitish = $env:GITHUB_SHA; name = "FocusSearch $tag"; draft = $true; prerelease = $false
-    body = "Windows 10/11 便携版。下载 zip、解压并双击 FocusSearch.exe。Alt + Space 唤起搜索，托盘设置可切换应用网格模式。SHA256SUMS.txt 用于校验下载文件。"
+    body = $releaseNotes
 } | ConvertTo-Json
 $release = Invoke-RestMethod -Method Post -Uri "$api/releases" -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 $uploadBase = $release.upload_url -replace '\{.*$', ''

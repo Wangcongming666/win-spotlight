@@ -40,8 +40,7 @@ namespace FocusSearch
             float inset = _pressed ? 3 : 1.5f;
             RectangleF circle = new RectangleF(inset, inset, Width - inset * 2, Height - inset * 2);
             using (var fill = new SolidBrush(Fade(SystemInformation.HighContrast ? SystemColors.Window : Color.FromArgb(_hover ? 235 : 205, GlassPalette.Surface)))) g.FillEllipse(fill, circle);
-            using (var pen = new Pen(Fade(Selected || Focused ? GlassPalette.Selection : Color.FromArgb(GlassPalette.IsDark ? 95 : 235, Color.White)), Selected || Focused ? 2 : 1.3f)) g.DrawEllipse(pen, circle);
-            using (var pen = new Pen(Fade(Color.FromArgb(45, GlassPalette.Secondary)))) g.DrawEllipse(pen, inset + 1.5f, inset + 1.5f, Width - inset * 2 - 3, Height - inset * 2 - 3);
+            using (var pen = new Pen(Fade(Selected || Focused ? GlassPalette.Selection : Color.FromArgb(GlassPalette.IsDark ? 75 : 180, Color.White)), Selected || Focused ? 2 : 1)) g.DrawEllipse(pen, circle);
             var state = g.Save(); g.TranslateTransform((Width - 24) / 2f, (Height - 24) / 2f);
             using (var pen = new Pen(Fade(Enabled ? Selected ? GlassPalette.Selection : GlassPalette.Text : GlassPalette.Secondary), 1.65f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
             {

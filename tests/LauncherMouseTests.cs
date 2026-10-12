@@ -17,6 +17,34 @@ namespace FocusSearch.Tests
             tests.Add(MenuDoesNotDeactivateLauncher);
             tests.Add(RevealLocationWaitsForResultAndReportsFailure);
             tests.Add(StandardGridUsesSixColumnsForNavigationAndHitTesting);
+            tests.Add(ExpandedSearchCapsuleStaysInsidePanel);
+        }
+        private static void ExpandedSearchCapsuleStaysInsidePanel()
+        {
+            using (var index = new AppIndex(new string[0]))
+            using (var window = new LauncherWindow(index, new SearchEngine(index, new WindowsSearchProvider(), new Dictionary<string, UsageRecord>()), new AppSettings { AnimationsEnabled = false, HideOnDeactivate = false }))
+            {
+                window.ShowLauncher(true, false);
+                typeof(LauncherWindow).GetMethod("SelectScope", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(window, new object[] { SearchScope.Applications });
+                var backdropField = typeof(LauncherWindow).GetField("_backdrop", BindingFlags.Instance | BindingFlags.NonPublic);
+                var previous = (Bitmap)backdropField.GetValue(window);
+                var backdrop = new Bitmap(window.Width, window.Height);
+                using (var graphics = Graphics.FromImage(backdrop)) graphics.Clear(Color.FromArgb(30, 60, 90));
+                backdropField.SetValue(window, backdrop);
+                if (previous != null) previous.Dispose();
+                var input = (TextBox)typeof(LauncherWindow).GetField("_input", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(window);
+                input.BackColor = Color.FromArgb(235, 240, 245);
+                using (var image = new Bitmap(window.Width, window.Height))
+                {
+                    window.DrawToBitmap(image, new Rectangle(Point.Empty, image.Size));
+                    TestRunner.Equal(true, image.GetPixel(3, 38).R < 60, "Expanded search capsule must leave a glass gutter instead of touching the panel's left border.");
+                    TestRunner.Equal(true, image.GetPixel(180, 38).R > 200, "The inset capsule must still contain the search input surface.");
+                    image.Save(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "launcher-inset-panel.png"));
+                }
+                var tabs = (SearchTabButton[])typeof(LauncherWindow).GetField("_tabs", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(window);
+                TestRunner.Equal(true, tabs[3].Right <= window.Width - 12, "The final header button must retain the same panel gutter.");
+                window.HideLauncher();
+            }
         }
         private static void StandardGridUsesSixColumnsForNavigationAndHitTesting()
         {

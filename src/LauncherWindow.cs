@@ -44,6 +44,8 @@ namespace FocusSearch
         private int _previewFromHeight, _previewTargetHeight, _previewContentHeight;
         private int _previewFromTop, _previewTargetTop, _previewAnchorTop;
         private int SearchBarWidth { get { return _fullScreen ? 600 : Math.Max(200, Width - 256); } }
+        // One geometry for painting and clipping in both compact and expanded states.
+        private RectangleF SearchBarBounds { get { return new RectangleF(12, 10, SearchBarWidth - 24, 56); } }
         private bool Compact { get { return !_fullScreen && !_browseApps && _input.TextLength == 0 && (_previewTimer == null || !_previewTimer.Enabled); } }
         public bool IsHiding { get { return _animator.IsClosing; } }
         public bool IsApplicationsView { get { return _fullScreen; } }
@@ -264,13 +266,13 @@ namespace FocusSearch
             {
                 Width = Math.Min(720, work.Width - 30); Height = 76;
                 Location = new Point(Math.Min(work.Right - Width - 12, work.Left + (work.Width - SearchBarWidth) / 2), work.Top + Math.Max(20, (work.Height - Height) / 3));
-                _input.SetBounds(54, 21, SearchBarWidth - 100, 34);
+                _input.SetBounds(58, 22, SearchBarWidth - 98, 34);
                 _canvas.SetBounds(18, 98, Width - 36, 120);
                 _previewAnchorTop = Top;
             }
             int tabLeft = _fullScreen ? _input.Right + 22 : SearchBarWidth + 10;
-            for (int i = 0; i < _tabs.Length; i++) _tabs[i].SetBounds(tabLeft + i * 60, _fullScreen ? 58 : 10, 54, 54);
-            _tabReveal.SetBounds(_fullScreen ? _input.Right - 20 : SearchBarWidth - 42, _fullScreen ? 58 : 10, 36, 54);
+            for (int i = 0; i < _tabs.Length; i++) _tabs[i].SetBounds(tabLeft + i * 60, _fullScreen ? 58 : 11, 54, 54);
+            _tabReveal.SetBounds(_fullScreen ? _input.Right - 20 : SearchBarWidth - 42, _fullScreen ? 58 : 11, 36, 54);
             ExpandTabs(false);
             _footer.SetBounds(24, Height - 34, Width - 88, 25);
             _dismiss.SetBounds(Width - 52, Height - 36, 28, 28);
@@ -279,6 +281,13 @@ namespace FocusSearch
             if (!fullScreen) capture.Height = Math.Max(Height, Math.Min(work.Height, 174 + 8 * 62));
             _backdrop = GlassBackdrop.Capture(capture);
             if (_backdrop != null) _input.BackColor = _backdrop.GetPixel(Math.Min(_backdrop.Width - 1, _input.Left + _input.Width / 2), Math.Min(_backdrop.Height - 1, _input.Top + _input.Height / 2));
+            if (!SystemInformation.HighContrast)
+            {
+                Color material = _input.BackColor;
+                int target = GlassPalette.IsDark ? 28 : 255;
+                double wash = GlassPalette.IsDark ? 0.12 : 0.24;
+                _input.BackColor = Color.FromArgb((int)(material.R + (target - material.R) * wash), (int)(material.G + (target - material.G) * wash), (int)(material.B + (target - material.B) * wash));
+            }
             _input.Clear(); RefreshEmpty(); _canvas.PrepareIcons();
             UpdateWindowRegion();
             _canvas.AnimationsEnabled = Settings.AnimationsEnabled && Motion.SystemAllowsAnimation();
@@ -412,13 +421,20 @@ namespace FocusSearch
             base.OnPaint(args);
             if (_fullScreen) return;
             args.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            RectangleF search = _fullScreen ? new RectangleF(_input.Left - 48, _input.Top - 14, _input.Width + 64, 64) : new RectangleF(1, 7, SearchBarWidth - 2, 60);
-            using (var path = RoundedShapes.Path(search, 30))
+            RectangleF search = SearchBarBounds;
+            if (!Compact && !SystemInformation.HighContrast)
+                for (int spread = 4; spread >= 1; spread--)
+                {
+                    RectangleF shadow = search;
+                    shadow.Offset(0, 2);
+                    shadow.Inflate(spread * 0.5f, spread * 0.5f);
+                    using (var path = RoundedShapes.Path(shadow, 28 + spread * 0.5f))
+                    using (var pen = new Pen(Color.FromArgb(10 - spread, 20, 28, 40), 1.5f)) args.Graphics.DrawPath(pen, path);
+                }
+            using (var path = RoundedShapes.Path(search, 28))
             using (var fill = new SolidBrush(_input.BackColor)) args.Graphics.FillPath(fill, path);
-            using (var path = RoundedShapes.Path(search, 30))
-            using (var rim = new Pen(Color.FromArgb(GlassPalette.IsDark ? 115 : 235, Color.White), 1.4f)) args.Graphics.DrawPath(rim, path);
-            using (var path = RoundedShapes.Path(new RectangleF(search.X + 2, search.Y + 2, search.Width - 4, search.Height - 4), 28))
-            using (var rim = new Pen(Color.FromArgb(36, GlassPalette.Secondary))) args.Graphics.DrawPath(rim, path);
+            using (var path = RoundedShapes.Path(search, 28))
+            using (var rim = new Pen(SystemInformation.HighContrast ? SystemColors.WindowText : Color.FromArgb(GlassPalette.IsDark ? 75 : 180, Color.White), 1)) args.Graphics.DrawPath(rim, path);
             using (var fill = new SolidBrush(_input.BackColor)) args.Graphics.FillRectangle(fill, _input.Left - 1, _input.Top - 1, _input.Width + 2, _input.Height + 2);
             using (var pen = new Pen(GlassPalette.Secondary, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round }) { args.Graphics.DrawEllipse(pen, _input.Left - 31, _input.Top + 7, 17, 17); args.Graphics.DrawLine(pen, _input.Left - 16, _input.Top + 22, _input.Left - 10, _input.Top + 28); }
             if (_canvas.Visible)
@@ -428,8 +444,6 @@ namespace FocusSearch
                 using (var border = new LinearGradientBrush(ClientRectangle, Color.FromArgb(GlassPalette.IsDark ? 95 : 220, 255, 255, 255), Color.FromArgb(GlassPalette.IsDark ? 25 : 75, 193, 201, 215), LinearGradientMode.Vertical))
                 using (var pen = new Pen(border, 1))
                 using (var outline = RoundedShapes.Path(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), 24)) args.Graphics.DrawPath(pen, outline);
-                using (var pen = new Pen(Color.FromArgb(24, 255, 255, 255)))
-                using (var outline = RoundedShapes.Path(new RectangleF(1.5f, 1.5f, Width - 3, Height - 3), 23)) args.Graphics.DrawPath(pen, outline);
             }
         }
         protected override void OnSizeChanged(EventArgs args)
@@ -454,7 +468,9 @@ namespace FocusSearch
             else if (_input != null && Compact)
             {
                 Region expanded;
-                using (var path = RoundedShapes.Path(new RectangleF(0, 6, SearchBarWidth, 62), 31)) expanded = new Region(path);
+                RectangleF clip = SearchBarBounds;
+                clip.Inflate(1, 1);
+                using (var path = RoundedShapes.Path(clip, 29)) expanded = new Region(path);
                 if (_tabs != null) foreach (var tab in _tabs)
                 {
                     double progress = tab.RevealProgress;

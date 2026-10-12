@@ -1,68 +1,117 @@
-# FocusSearch · 聚焦搜索
+# FocusSearch
 
-轻量 Windows 桌面启动器，C# / .NET Framework 4.8 原生实现，无第三方依赖。
+**聚焦搜索 — 面向 Windows 的轻量级桌面搜索与应用启动器。**
+
+FocusSearch 借鉴 macOS Spotlight 与 Launchpad 的交互方式，通过全局快捷键快速查找应用和本机文件。提供玻璃质感搜索面板与应用网格，支持组合显示或独立使用。
+
+[下载版本](https://github.com/Wangcongming666/win-spotlight/releases) · [使用说明](docs/INSTALL.md) · [更新记录](CHANGELOG.md) · [问题反馈](https://github.com/Wangcongming666/win-spotlight/issues)
+
+## 功能特性
+
+- **快捷搜索**：使用 `Alt + Space` 唤起搜索面板，查找应用和文件。
+- **应用网格**：以图标网格浏览应用，支持鼠标滚轮翻页与键盘导航。
+- **灵活布局**：搜索框与应用网格可组合显示；分离模式下，使用 `Alt + A` 打开全屏应用网格。
+- **玻璃质感**：深色模糊背景、圆角面板与过渡动画；动画可在设置中关闭。
+- **托盘常驻**：通过通知区域图标访问设置、打开面板或退出程序。
+- **本地运行**：基于 C#、WinForms 与 .NET Framework 4.8，无第三方运行库依赖，不上传搜索数据。
+
+## 系统要求
+
+- Windows 10 / Windows 11（x64）。
+- .NET Framework 4.8 或 4.8.1。
+
+使用便携版无需安装 .NET SDK、Node.js 或其他开发工具。
 
 ## 下载与运行
 
-普通用户在仓库的 **Releases** 页面下载 `FocusSearch-版本-windows-portable.zip`，解压后双击 `FocusSearch.exe` 即可使用，无需下载源码或安装开发工具。也可下载单独的 exe。初次发布前，可用本地 `dist` 中的同名便携包。
+1. 前往 [Releases](https://github.com/Wangcongming666/win-spotlight/releases)，下载 `FocusSearch-版本-windows-portable.zip`。
+2. 将压缩包解压到可写目录，双击 `FocusSearch.exe`。
+3. 按 `Alt + Space` 打开搜索面板。
 
-运行后，右下角通知区域会出现蓝色放大镜图标；右键可以打开设置或退出。如果图标被 Windows 折叠，点击托盘箭头即可找到。
+启动后，Windows 通知区域会显示蓝色放大镜图标。右键该图标可打开设置或退出；若图标被折叠，可在隐藏图标菜单中找到。
 
-详细说明见 [便携版使用说明](docs/INSTALL.md)，版本变化见 [更新记录](CHANGELOG.md)。
+发布包提供 `SHA256SUMS.txt` 供校验文件完整性。当前可执行文件未进行商业代码签名，请从本仓库的发布页面获取程序。
 
-## 使用
+## 使用方式
 
-双击 `build/FocusSearch.exe`。启动后按 **Alt + Space** 显示或收起搜索面板。
+| 操作 | 默认快捷键 / 方式 |
+| --- | --- |
+| 显示或收起搜索面板 | `Alt + Space` |
+| 打开独立应用网格 | `Alt + A`（分离模式且启用应用网格时） |
+| 移动选择 | 方向键 |
+| 打开选中项 | `Enter` |
+| 收起面板 | `Esc` |
+| 应用网格翻页 | 鼠标滚轮、`Page Up` / `Page Down` |
+| 打开设置或退出 | 右键通知区域图标 |
 
-- 默认组合模式：搜索框下方显示应用网格；输入后切换到搜索结果。
-- 托盘右键 → 设置：取消“搜索框与应用程序一起显示”后，搜索框独立显示；**Alt + A** 打开全屏应用网格。
-- 方向键选择，Enter 打开，Esc 收起；网格可使用滚轮或 Page Up / Page Down 翻页。
-- 点击应用图标直接启动。设置中可以修改快捷键、文件搜索、失焦收起和开机启动。
-- 程序常驻托盘，右键 → 退出可释放全局快捷键。
+默认使用组合模式：未输入内容时显示应用网格，输入关键词后显示搜索结果。点击应用图标可直接启动应用。
 
-## 文件搜索范围
+在设置中可以调整显示模式、全局快捷键、文件搜索、动画、失焦收起与开机启动。若快捷键已被其他程序占用，请更换组合键。
 
-优先搜索 Windows Search 已索引的文件名。未索引的目录不会自动加入系统索引。
+## 搜索范围与限制
 
-如果系统未安装或未注册 Windows Search 提供程序，回退搜索桌面、文档和用户 Downloads 目录；最多访问 5000 个文件，深入两级子目录，时间预算 250 ms。这个回退是有限范围搜索，不能代替全盘检索。当前检查环境缺少 `Search.CollatorDSO.1`，已验证回退行为。
+### 应用
 
-系统搜索通配符语法参考 [Microsoft Windows Search LIKE 文档](https://learn.microsoft.com/en-us/windows/win32/search/-search-sql-like)。
+应用列表来自当前用户及公共开始菜单、桌面中的程序入口。可解析的快捷方式按目标、启动参数和工作目录去重。
 
-## 构建与验证
+当前版本不枚举没有开始菜单入口的商店应用，不支持图标拖拽排序或应用文件夹。
 
-Windows 10/11，需 .NET Framework 4.8。使用 Windows 自带 C# 编译器，无需 SDK、NuGet 或联网。
+### 文件
+
+优先使用 Windows Search 的已有索引，按文件名及路径搜索；不会自动扩大系统索引范围，也不提供文件内容全文检索。
+
+当 Windows Search 接口不可用时，使用有限范围搜索：桌面、文档及 Downloads 目录，最多访问 5,000 个文件，深入两级子目录，时间预算为 250 ms。未索引或超出回退范围的文件可能不会出现在结果中；本工具并非全盘文件检索引擎。
+
+## 隐私与本地数据
+
+程序运行时不联网，不上传搜索内容。设置与使用历史保存在 `%LOCALAPPDATA%\FocusSearch`。
+
+玻璃背景在面板唤起时读取其覆盖的屏幕区域，生成临时模糊图像；收起后释放，不持续截屏或保存屏幕内容。
+
+更新前请先退出程序，再替换文件。移除程序前请取消开机启动并从托盘退出，然后删除程序所在目录；本地设置与历史可按需保留或删除。
+
+## 从源码构建
+
+构建使用系统目录中的 C# 编译器，无需 .NET SDK、NuGet 或联网下载依赖。在项目根目录运行：
 
 ```powershell
-pwsh -NoProfile -File .\build.ps1
-pwsh -NoProfile -File .\build.ps1 -Test
-pwsh -NoProfile -File .\run.ps1
-pwsh -NoProfile -File .\package.ps1
+# 构建程序
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
+
+# 构建并运行测试
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Test
+
+# 启动程序
+powershell -NoProfile -ExecutionPolicy Bypass -File .\run.ps1
+
+# 生成便携发布包
+powershell -NoProfile -ExecutionPolicy Bypass -File .\package.ps1
 ```
 
-没有 PowerShell 7 时可将 `pwsh` 替换为 `powershell -ExecutionPolicy Bypass`。也可以双击 `启动.cmd`。
+也可使用 PowerShell 7（`pwsh`）运行上述脚本，或双击 `启动.cmd` 构建并启动。
 
-核心测试覆盖匹配排序、配置往返、损坏配置、历史计数、索引过滤与去重、搜索转义、取消、热键冲突回滚和原生输入框消息。UI 冒烟可运行 `build/FocusSearch.Tests.exe --ui-smoke`，将布局截图和真实屏幕截图保存到 build 目录；这些本机截图不纳入发布包。`--perf-smoke` 可测量翻页事件处理耗时。
+构建输出位于 `build`，发布包位于 `dist`。重新编译前请退出正在运行的程序，避免可执行文件被占用。
 
-## 外观与限制
+### 测试
 
-原生圆角、深色模糊玻璃面板；每次唤起采集窗口覆盖区域并生成模糊快照，收起后释放，不持续截屏或保存屏幕内容。使用单一背景渲染路径，避免 Acrylic 与 WinForms 编辑框叠加产生白条。应用图标从 Windows Shell 读取，应用自身与托盘使用专用多尺寸放大镜图标。
+自动化测试覆盖搜索匹配与排序、设置读写、历史记录、应用去重、搜索取消、热键冲突处理及输入框消息处理。
 
-图标优先读取 [Shell 的 Jumbo 图像列表](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shgetimagelist)，去除透明留白后按统一比例绘制；缺失图标使用圆角字母标识。窗口以 180 ms 淡入上移、120 ms 淡出收起，悬停反馈约 130 ms。支持在设置关闭动画，也遵循 Windows 的客户端动画偏好；动画定时器在过渡结束后停止。
+```powershell
+# 窗口、布局与热键冒烟测试
+.\build\FocusSearch.Tests.exe --ui-smoke
 
-Shell 图标由单独的 STA 后台线程提取，绘制与滚轮事件不再执行文件/COM 图标读取。优先加载并保护当前页，按剩余缓存容量预取相邻页，缓存最多 96 项；高速滚轮事件按短间隔合并，悬停只重绘受影响区域。首次进入未缓存页面可能短暂显示占位图标。隐藏后暂停尚未开始的图标任务。
+# 翻页事件处理性能测试
+.\build\FocusSearch.Tests.exe --perf-smoke
+```
 
-应用来自当前用户及公共开始菜单和桌面。快捷方式可解析时按真实目标、启动参数和工作目录去重；无法解析时保留独立路径，避免隐藏不同目标。第一版不枚举没有开始菜单入口的商店应用，不提供图标拖拽重排、应用文件夹或文件全文检索。
+界面测试生成的本机截图保存在 `build`，不纳入发布包。性能测试测量翻页事件处理耗时，不代表页面图标全部加载时间或渲染帧率。
 
-设置及历史位于 `%LOCALAPPDATA%\FocusSearch`。卸载时先取消开机启动，再从托盘退出，删除项目文件夹即可；本地历史目录可按需保留或自行删除。
+## 发布流程
 
-## 当前验证结果
+推送至 `main` / `master` 或手动触发 [发布工作流](https://github.com/Wangcongming666/win-spotlight/actions/workflows/release.yml)，将依次完成构建、测试、打包和 GitHub Release 发布。
 
-24 项核心测试通过，窗口开闭、中断重开与原生热键冒烟通过。冷翻页事件处理在同机同组测量中由平均 198.83 ms / 最大 373.17 ms 降到平均 0.06 ms / 最大 0.46 ms；这是事件处理时间，不代表整个页面图标加载时间。之前版本的空闲一分钟 CPU 时间增量为 0 秒、工作集约 41 MB；新版的内存会受异步图标缓存影响。Windows Search 系统提供程序查询仍需在接口可用的桌面环境中验收。
+发布资产包括便携版 ZIP、独立可执行文件和 SHA-256 校验文件。同版本的已发布资产不会被覆盖；发布新版本前，请更新 `src/AssemblyInfo.cs` 中的版本号。工作流需要仓库允许 Actions 使用 `contents: write` 权限。
 
-重新编译前请从托盘退出，或运行 `build/FocusSearch.exe --quit`；正在运行的 exe 无法被编译器覆盖。
+## 问题反馈
 
-## GitHub 发布
-
-主分支推送或手动触发 `.github/workflows/release.yml` 后，Windows 工作流执行测试、打包，并创建带 zip、exe 和 SHA-256 校验文件的 Release。不会覆盖已发布的同版本资产；发布新版本时请修改 `src/AssemblyInfo.cs` 的版本号。
-
-发布脚本使用 [GitHub Releases API](https://docs.github.com/en/rest/releases/releases) 和 Actions 的仓库令牌，不在源码保存个人访问令牌。仓库需要允许 Actions 使用 `contents: write`；第一次远程发布只有在仓库存在并允许写入后才能执行。
+欢迎通过 [GitHub Issues](https://github.com/Wangcongming666/win-spotlight/issues) 提交缺陷或功能建议。报告问题时，请提供系统版本、程序版本、复现步骤与预期行为；附加截图或日志前，请移除个人信息。
